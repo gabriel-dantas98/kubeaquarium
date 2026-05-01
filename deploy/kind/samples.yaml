@@ -1,0 +1,141 @@
+---
+apiVersion: v1
+kind: Namespace
+metadata: { name: web }
+---
+apiVersion: v1
+kind: Namespace
+metadata: { name: payments }
+---
+apiVersion: v1
+kind: Namespace
+metadata: { name: monitoring }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: nginx, namespace: web }
+spec:
+  replicas: 4
+  selector: { matchLabels: { app: nginx } }
+  template:
+    metadata: { labels: { app: nginx } }
+    spec:
+      containers:
+        - name: nginx
+          image: nginx:1.27-alpine
+          resources:
+            requests: { cpu: 50m, memory: 64Mi }
+            limits:   { cpu: 200m, memory: 128Mi }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: httpbin, namespace: web }
+spec:
+  replicas: 2
+  selector: { matchLabels: { app: httpbin } }
+  template:
+    metadata: { labels: { app: httpbin } }
+    spec:
+      containers:
+        - name: httpbin
+          image: kennethreitz/httpbin
+          resources:
+            requests: { cpu: 100m, memory: 128Mi }
+            limits:   { cpu: 500m, memory: 256Mi }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: redis, namespace: payments }
+spec:
+  replicas: 3
+  selector: { matchLabels: { app: redis } }
+  template:
+    metadata: { labels: { app: redis } }
+    spec:
+      containers:
+        - name: redis
+          image: redis:7-alpine
+          resources:
+            requests: { cpu: 200m, memory: 256Mi }
+            limits:   { cpu: 500m, memory: 512Mi }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: worker, namespace: payments }
+spec:
+  replicas: 5
+  selector: { matchLabels: { app: worker } }
+  template:
+    metadata: { labels: { app: worker } }
+    spec:
+      containers:
+        - name: worker
+          image: busybox:1.36
+          command: ["sh","-c","while true; do echo working; sleep 5; done"]
+          resources:
+            requests: { cpu: 25m, memory: 32Mi }
+            limits:   { cpu: 100m, memory: 64Mi }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: prometheus-fake, namespace: monitoring }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: prom } }
+  template:
+    metadata: { labels: { app: prom } }
+    spec:
+      containers:
+        - name: prom
+          image: nginx:1.27-alpine
+          resources:
+            requests: { cpu: 500m, memory: 1024Mi }
+            limits:   { cpu: 1000m, memory: 2048Mi }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: grafana-fake, namespace: monitoring }
+spec:
+  replicas: 2
+  selector: { matchLabels: { app: graf } }
+  template:
+    metadata: { labels: { app: graf } }
+    spec:
+      containers:
+        - name: graf
+          image: nginx:1.27-alpine
+          resources:
+            requests: { cpu: 250m, memory: 512Mi }
+            limits:   { cpu: 500m, memory: 1024Mi }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: crashloop, namespace: payments }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: crashloop } }
+  template:
+    metadata: { labels: { app: crashloop } }
+    spec:
+      containers:
+        - name: bad
+          image: busybox:1.36
+          command: ["sh","-c","echo boom; exit 1"]
+          resources:
+            requests: { cpu: 25m, memory: 16Mi }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: pending-pod, namespace: web }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: pending } }
+  template:
+    metadata: { labels: { app: pending } }
+    spec:
+      nodeSelector: { kubernetes.io/hostname: nonexistent-node }
+      containers:
+        - name: c
+          image: busybox:1.36
+          resources:
+            requests: { cpu: 10m, memory: 8Mi }

@@ -1,0 +1,6 @@
+.superpowers/
+web/node_modules/
+internal/webassets/dist/assets/
+internal/webassets/dist/index.html
+/kubeaquarium
+*.log

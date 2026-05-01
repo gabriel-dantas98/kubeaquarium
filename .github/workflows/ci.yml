@@ -1,0 +1,38 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: web/package-lock.json
+
+      - name: build frontend
+        working-directory: web
+        run: |
+          npm ci
+          npm run build
+
+      - name: vet
+        run: go vet ./...
+
+      - name: build
+        run: go build -o /tmp/kubeaquarium ./cmd/kubeaquarium
+
+      - name: smoke
+        run: /tmp/kubeaquarium version

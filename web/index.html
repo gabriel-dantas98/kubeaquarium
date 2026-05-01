@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>kubeaquarium</title>
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%232496ed' d='M5 20c4 4 12 4 18 0 2-1 4-1 4 0 0 4-6 7-13 7-6 0-9-3-9-7zm1-2 5-1c0-3 2-5 5-5s5 2 5 5l4-1 1-3-2 1V8h-3v3l-2 1V8h-3v3l-2 1V8h-3v3l-2 1V8H7v6l-3 2z'/%3E%3C/svg%3E" />
+    <link rel="stylesheet" href="/src/hud/hud.css" />
+  </head>
+  <body>
+    <canvas id="scene"></canvas>
+    <div id="hud">
+      <header class="topbar">
+        <div class="brand">🐳 kubeaquarium</div>
+        <div class="meta">
+          <span id="ctx-name">—</span>
+          <span class="dot" id="ws-dot" title="WebSocket"></span>
+          <span id="pod-count">0 pods</span>
+        </div>
+      </header>
+
+      <div id="search" class="search hidden">
+        <span class="search-prefix">/</span>
+        <input id="search-input" type="text" autocomplete="off" spellcheck="false"
+               placeholder="filter — name, or ns:web phase:Running node:..." />
+        <span id="search-count" class="search-count">0 / 0</span>
+      </div>
+      <div id="labels"></div>
+
+      <div id="empty-state" class="empty-state hidden">
+        <div class="empty-card">
+          <div class="empty-icon">🐳</div>
+          <h2>Quiet waters</h2>
+          <p id="empty-msg">Connecting to your cluster…</p>
+          <div class="empty-tips">
+            <div><kbd>/</kbd> filter pods (e.g. <code>ns:web</code>, <code>phase:!Running</code>)</div>
+            <div><kbd>click</kbd> a whale to see events, YAML and live logs</div>
+            <div><kbd>F</kbd> swim through the cluster in first person</div>
+          </div>
+        </div>
+      </div>
+
+      <aside id="detail" class="detail hidden">
+        <button class="close" data-close>×</button>
+        <h3 id="d-name"></h3>
+        <div class="pod-sub">
+          <span id="d-ns-pill" class="pill"></span>
+          <span id="d-phase-pill" class="pill"></span>
+        </div>
+
+        <nav class="tabs">
+          <button class="tab active" data-tab="overview">Overview</button>
+          <button class="tab" data-tab="events">Events</button>
+          <button class="tab" data-tab="yaml">YAML</button>
+          <button class="tab" data-tab="logs">Logs</button>
+        </nav>
+
+        <div class="tabpane active" data-pane="overview">
+          <div class="kv"><span>node</span><b id="d-node"></b></div>
+          <div class="kv"><span>ready</span><b id="d-ready"></b></div>
+          <div class="kv"><span>restarts</span><b id="d-restarts"></b></div>
+          <div class="kv"><span>cpu req</span><b id="d-cpu"></b></div>
+          <div class="kv"><span>mem req</span><b id="d-mem"></b></div>
+          <div class="kv"><span>created</span><b id="d-created"></b></div>
+        </div>
+
+        <div class="tabpane" data-pane="events">
+          <div id="d-events" class="events-list">
+            <div class="empty">click to load events</div>
+          </div>
+        </div>
+
+        <div class="tabpane" data-pane="yaml">
+          <pre id="d-yaml" class="code"><span class="empty">click to load yaml</span></pre>
+        </div>
+
+        <div class="tabpane logs-pane" data-pane="logs">
+          <div class="logs-toolbar">
+            <select id="d-container" class="container-sel"></select>
+            <label class="follow"><input type="checkbox" id="d-follow" checked /> follow</label>
+            <button id="d-clear" class="ghost-btn">clear</button>
+          </div>
+          <pre id="d-logs" class="terminal"><span class="empty">select a container</span></pre>
+        </div>
+      </aside>
+
+      <footer class="hint">
+        <kbd>/</kbd> filter · <kbd>drag</kbd> orbit · <kbd>scroll</kbd> zoom · <kbd>click</kbd> select · <kbd>F</kbd> fly · <kbd>Esc</kbd> back
+      </footer>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
