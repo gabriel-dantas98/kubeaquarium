@@ -66,12 +66,22 @@ if [ -z "${PREFIX:-}" ]; then
     PREFIX="/usr/local/bin"
   else
     PREFIX="$HOME/.local/bin"
-    mkdir -p "$PREFIX"
   fi
 fi
+mkdir -p "$PREFIX"
 
 DEST="$PREFIX/$BIN"
-install -m 0755 "$TMP/$BIN" "$DEST" 2>/dev/null || cp "$TMP/$BIN" "$DEST" && chmod 0755 "$DEST"
+if install -m 0755 "$TMP/$BIN" "$DEST" 2>/dev/null; then
+  :
+else
+  cp "$TMP/$BIN" "$DEST"
+  chmod 0755 "$DEST"
+fi
+
+if [ ! -x "$DEST" ]; then
+  echo "✗ install failed: $DEST is missing or not executable" >&2
+  exit 1
+fi
 
 echo "✔ installed: $DEST"
 case ":$PATH:" in
