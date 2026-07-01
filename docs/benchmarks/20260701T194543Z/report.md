@@ -8,6 +8,7 @@ Result: **passed** for the stable local run.
 - Workload: repo samples plus generated benchmark resources.
 - Visible pods in kubeaquarium: `222`.
 - Browser benchmark: Chromium headed, 1440x900, 10 FPS samples.
+- Browser recording: recompressed to 960x600 WebM to keep repository assets small.
 - FPS: avg `120.6`, min `120`, p50 `121`, p95 `122`.
 - Filter validation: `ns:bench-payments phase:Running` matched `17 / 222`.
 - Detail panel validation: overview opened, Events/YAML/Logs tabs loaded.

@@ -8,10 +8,10 @@ export const RemotionRoot: React.FC = () => {
       <Composition
         id="KubeAquariumDemo"
         component={KubeAquariumDemo}
-        durationInFrames={540}
-        fps={30}
-        width={1280}
-        height={720}
+        durationInFrames={360}
+        fps={24}
+        width={960}
+        height={540}
       />
     </>
   );
