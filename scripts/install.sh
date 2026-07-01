@@ -52,11 +52,28 @@ echo "→ Downloading $BIN $VERSION ($OS/$ARCH)"
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
 
-if command -v curl >/dev/null 2>&1; then
-  curl -fsSL "$URL" -o "$TMP/$ARCHIVE"
-else
-  wget -qO "$TMP/$ARCHIVE" "$URL"
-fi
+attempt=1
+max_attempts="${KUBEAQUARIUM_DOWNLOAD_ATTEMPTS:-30}"
+while :; do
+  if command -v curl >/dev/null 2>&1; then
+    if curl -fsSL "$URL" -o "$TMP/$ARCHIVE"; then
+      break
+    fi
+  elif wget -qO "$TMP/$ARCHIVE" "$URL"; then
+    break
+  fi
+
+  if [ "$attempt" -ge "$max_attempts" ]; then
+    echo "✗ could not download release asset: $ARCHIVE" >&2
+    echo "  url: $URL" >&2
+    echo "  if this version was just released, GitHub may not have published assets yet; retry in a minute" >&2
+    exit 1
+  fi
+
+  attempt=$((attempt + 1))
+  echo "  asset not available yet; retrying ($attempt/$max_attempts)..." >&2
+  sleep "${KUBEAQUARIUM_DOWNLOAD_RETRY_SECONDS:-5}"
+done
 
 tar -xzf "$TMP/$ARCHIVE" -C "$TMP"
 
