@@ -31,12 +31,16 @@ FLAGS:
   --addr           listen address                      (default 127.0.0.1:7777)
   --context        kubeconfig context to use           (default current-context)
   --kubeconfig     path to kubeconfig                  (default $KUBECONFIG or ~/.kube/config)
+  --namespace      namespace to watch; repeat or comma-separate for many
+  --label-selector Kubernetes label selector for pods
   --no-open        do not auto-open the browser
   --no-banner      suppress the start-up banner
 
 EXAMPLES:
   kubeaquarium
   kubeaquarium --context my-eks-prod
+  kubeaquarium --namespace payments --label-selector app=api
+  kubeaquarium --namespace default,kube-system --label-selector 'tier in (frontend,backend)'
   kubeaquarium --addr 0.0.0.0:8080 --no-open
 `
 
@@ -90,12 +94,23 @@ func runServer(args []string) {
 	addr := fs.String("addr", "127.0.0.1:7777", "listen address")
 	kubeconfig := fs.String("kubeconfig", os.Getenv("KUBECONFIG"), "path to kubeconfig")
 	contextName := fs.String("context", "", "kubeconfig context (default current-context)")
+	var namespaces []string
+	fs.Func("namespace", "namespace to watch; repeat or comma-separate for many", func(value string) error {
+		namespaces = append(namespaces, value)
+		return nil
+	})
+	labelSelector := fs.String("label-selector", "", "Kubernetes label selector for pods")
 	noOpen := fs.Bool("no-open", false, "do not auto-open the browser")
 	noBanner := fs.Bool("no-banner", false, "suppress the start-up banner")
 	if err := fs.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
 			return
 		}
+		os.Exit(2)
+	}
+	watchOptions, err := k8s.NewWatchOptions(namespaces, *labelSelector)
+	if err != nil {
+		cli.Errorf("%v", err)
 		os.Exit(2)
 	}
 
@@ -186,7 +201,7 @@ func runServer(args []string) {
 		cli.Hint("port %s busy → using %s instead", *addr, listenAddr)
 	}
 
-	w := k8s.NewWatcher(cs)
+	w := k8s.NewWatcherWithOptions(cs, watchOptions)
 	if err := w.Start(rootCtx); err != nil {
 		cli.Errorf("starting watcher: %v", err)
 		os.Exit(1)

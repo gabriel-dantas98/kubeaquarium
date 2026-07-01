@@ -1,0 +1,37 @@
+{
+  "name": "video",
+  "version": "1.0.0",
+  "description": "kubeaquarium README demo video",
+  "repository": {},
+  "license": "UNLICENSED",
+  "private": true,
+  "dependencies": {
+    "@remotion/cli": "4.0.484",
+    "@remotion/media": "4.0.484",
+    "playwright": "1.61.1",
+    "react": "19.2.3",
+    "react-dom": "19.2.3",
+    "remotion": "4.0.484",
+    "zod": "4.3.6"
+  },
+  "devDependencies": {
+    "@remotion/eslint-config-flat": "4.0.484",
+    "@types/react": "19.2.7",
+    "@types/web": "0.0.166",
+    "eslint": "9.19.0",
+    "prettier": "3.8.1",
+    "typescript": "5.9.3"
+  },
+  "scripts": {
+    "dev": "remotion studio",
+    "build": "remotion bundle",
+    "capture": "node scripts/capture-demo.mjs",
+    "render": "remotion render src/index.ts KubeAquariumDemo ../docs/video/kubeaquarium-demo.mp4 --codec h264 --pixel-format yuv420p",
+    "still": "remotion still src/index.ts KubeAquariumDemo ../docs/video/kubeaquarium-demo-poster.png --frame 90",
+    "upgrade": "remotion upgrade",
+    "lint": "eslint src && tsc"
+  },
+  "sideEffects": [
+    "*.css"
+  ]
+}

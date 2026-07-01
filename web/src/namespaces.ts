@@ -6,8 +6,9 @@ export interface NamespaceLayout {
   radius: number; // bubble radius
 }
 
-const RING_RADIUS = 28;
+const MIN_NAMESPACE_GAP = 18;
 const VERT_JITTER = 6;
+const MAX_BUBBLE_RADIUS = 42;
 
 /**
  * Phyllotaxis-style stable layout: each namespace gets a slot on a spiral
@@ -15,22 +16,33 @@ const VERT_JITTER = 6;
  * lays out the same way across reloads.
  */
 export function layoutNamespaces(names: string[], counts: Map<string, number>): Map<string, NamespaceLayout> {
-  const sorted = [...names].sort();
+  const sorted = [...names].sort((a, b) => {
+    const bySize = (counts.get(b) ?? 0) - (counts.get(a) ?? 0);
+    return bySize || a.localeCompare(b);
+  });
   const out = new Map<string, NamespaceLayout>();
   const golden = Math.PI * (3 - Math.sqrt(5));
+  const radii = new Map(sorted.map(name => [name, radiusForCount(counts.get(name) ?? 1)]));
+  const avgRadius = sorted.reduce((sum, name) => sum + radii.get(name)!, 0) / Math.max(1, sorted.length);
+  const ringStep = Math.max(MIN_NAMESPACE_GAP, avgRadius * 2.25);
+
   for (let i = 0; i < sorted.length; i++) {
     const name = sorted[i];
     const angle = i * golden;
-    const radial = RING_RADIUS * Math.sqrt((i + 0.5) / Math.max(1, sorted.length));
+    const radial = i === 0 ? 0 : ringStep * Math.sqrt(i);
     const x = Math.cos(angle) * radial;
     const z = Math.sin(angle) * radial;
     // Vertical jitter from a hash of name for variety
     const y = (hash(name) % 1000) / 1000 * VERT_JITTER - VERT_JITTER / 2;
-    const podCount = counts.get(name) ?? 1;
-    const radius = Math.max(3, Math.min(14, 2.5 + Math.sqrt(podCount) * 1.6));
+    const radius = radii.get(name)!;
     out.set(name, { name, center: new THREE.Vector3(x, y, z), radius });
   }
   return out;
+}
+
+function radiusForCount(podCount: number): number {
+  const size = Math.max(1, podCount);
+  return THREE.MathUtils.clamp(4 + Math.cbrt(size) * 2.65, 5, MAX_BUBBLE_RADIUS);
 }
 
 function hash(s: string): number {

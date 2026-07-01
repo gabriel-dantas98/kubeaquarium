@@ -1,0 +1,56 @@
+{
+  "url": "http://127.0.0.1:7783",
+  "minPods": 200,
+  "sampleSeconds": 10,
+  "headless": false,
+  "fps": {
+    "samples": [
+      121,
+      121,
+      120,
+      121,
+      122,
+      121,
+      120,
+      120,
+      120,
+      120
+    ],
+    "min": 120,
+    "p50": 121,
+    "p95": 122,
+    "avg": 120.6
+  },
+  "filterState": {
+    "pods": 222,
+    "matched": 17,
+    "countText": "17 / 222"
+  },
+  "detailOpened": true,
+  "tabResults": {
+    "events": {
+      "textLength": 893
+    },
+    "yaml": {
+      "textLength": 4011,
+      "includesApiVersion": true
+    },
+    "logs": {
+      "textLength": 162
+    }
+  },
+  "finalState": {
+    "fps": 120,
+    "pods": 222,
+    "matched": 17,
+    "detailVisible": false
+  },
+  "errors": [
+    "WrongDocumentError: The root document of this element is not valid for pointer lock."
+  ],
+  "nonFatalErrors": [
+    "WrongDocumentError: The root document of this element is not valid for pointer lock."
+  ],
+  "fatalErrors": [],
+  "passed": true
+}
