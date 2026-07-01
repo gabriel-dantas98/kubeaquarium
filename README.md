@@ -4,6 +4,12 @@ A live 3D aquarium for your Kubernetes cluster. Each pod is a tiny Docker whale,
 
 ![kubeaquarium screenshot](docs/screenshot.png)
 
+## Demo
+
+[![kubeaquarium demo video](docs/video/kubeaquarium-demo-poster.png)](docs/video/kubeaquarium-demo.mp4)
+
+[Watch the MP4 demo](docs/video/kubeaquarium-demo.mp4). It was captured from kubeaquarium running against a real Kubernetes cluster with `--namespace monitoring`, then composed with Remotion.
+
 ## Install
 
 ```bash
@@ -23,11 +29,27 @@ Or grab a release archive from [Releases](https://github.com/gabriel-dantas98/ku
 ```bash
 kubeaquarium                    # uses your current kubectl context
 kubeaquarium --context my-eks   # pick a context
+kubeaquarium --namespace payments --label-selector app=api
+kubeaquarium --namespace default,kube-system --label-selector 'tier in (frontend,backend)'
 kubeaquarium contexts           # list available contexts
 kubeaquarium version
 ```
 
 The browser opens automatically at `http://127.0.0.1:7777`. Whatever cluster your `kubectl` can already reach, kubeaquarium can reach.
+
+### Server-side loading filters
+
+Use these when you want kubeaquarium to avoid loading the whole cluster:
+
+| Flag | Meaning |
+|---|---|
+| `--namespace payments` | watch only one namespace |
+| `--namespace payments,default` | watch multiple namespaces |
+| `--namespace payments --namespace default` | same, repeatable form |
+| `--label-selector app=api` | watch only pods matching Kubernetes labels |
+| `--label-selector 'tier in (frontend,backend)'` | full Kubernetes label selector syntax |
+
+Namespace filtering is applied at informer creation. For multiple namespaces, kubeaquarium starts one namespaced informer per namespace instead of watching all namespaces.
 
 ```
      _         _                                       _
@@ -97,6 +119,8 @@ Verified under headless puppeteer on M-series Mac (Chromium):
 
 All whales render in a single `InstancedMesh` (one draw call). Tail wave animation runs in the vertex shader. Movement uses a boids-style sim partitioned by namespace bubble with a uniform 3D grid for separation queries.
 
+For large clusters, kubeaquarium coalesces WebSocket updates once per animation frame, grows namespace bubbles proportionally to pod count, spreads namespaces across a larger phyllotaxis layout, lowers renderer pixel ratio under load, and switches from full boids to cheaper bounded swimming above high pod counts. Use `--namespace` and `--label-selector` to keep very large clusters focused before they reach the browser.
+
 ## Local development
 
 ```bash
@@ -110,6 +134,12 @@ make web-dev        # http://localhost:5173 (proxies /api → backend)
 
 # stress test
 make scale N=500
+
+# regenerate the README demo video
+cd video
+pnpm install
+DEMO_URL=http://127.0.0.1:7781 pnpm run capture
+pnpm run render
 ```
 
 ## Layout

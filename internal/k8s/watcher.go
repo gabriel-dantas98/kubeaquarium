@@ -7,6 +7,7 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
@@ -35,24 +36,74 @@ type Event struct {
 
 type Watcher struct {
 	clientset kubernetes.Interface
-	factory   informers.SharedInformerFactory
+	factories []informers.SharedInformerFactory
 	stopCh    chan struct{}
 	out       chan Event
+	options   WatchOptions
 }
 
 func NewWatcher(cs kubernetes.Interface) *Watcher {
+	return NewWatcherWithOptions(cs, WatchOptions{})
+}
+
+func NewWatcherWithOptions(cs kubernetes.Interface, options WatchOptions) *Watcher {
 	return &Watcher{
 		clientset: cs,
 		stopCh:    make(chan struct{}),
 		out:       make(chan Event, 256),
+		options:   options,
 	}
 }
 
 func (w *Watcher) Events() <-chan Event { return w.out }
 
 func (w *Watcher) Start(ctx context.Context) error {
-	w.factory = informers.NewSharedInformerFactory(w.clientset, 30*time.Second)
-	podInformer := w.factory.Core().V1().Pods().Informer()
+	w.factories = w.buildFactories()
+	for _, factory := range w.factories {
+		podInformer := factory.Core().V1().Pods().Informer()
+		if err := w.addPodEventHandler(podInformer); err != nil {
+			return err
+		}
+	}
+
+	for _, factory := range w.factories {
+		factory.Start(w.stopCh)
+	}
+	for _, factory := range w.factories {
+		if !cache.WaitForCacheSync(ctx.Done(), factory.Core().V1().Pods().Informer().HasSynced) {
+			return context.Canceled
+		}
+	}
+	return nil
+}
+
+func (w *Watcher) buildFactories() []informers.SharedInformerFactory {
+	namespaces := w.options.Namespaces
+	if len(namespaces) == 0 {
+		return []informers.SharedInformerFactory{w.newFactory("")}
+	}
+
+	factories := make([]informers.SharedInformerFactory, 0, len(namespaces))
+	for _, namespace := range namespaces {
+		factories = append(factories, w.newFactory(namespace))
+	}
+	return factories
+}
+
+func (w *Watcher) newFactory(namespace string) informers.SharedInformerFactory {
+	options := []informers.SharedInformerOption{}
+	if namespace != "" {
+		options = append(options, informers.WithNamespace(namespace))
+	}
+	if w.options.LabelSelector != "" {
+		options = append(options, informers.WithTweakListOptions(func(opts *metav1.ListOptions) {
+			opts.LabelSelector = w.options.LabelSelector
+		}))
+	}
+	return informers.NewSharedInformerFactoryWithOptions(w.clientset, 30*time.Second, options...)
+}
+
+func (w *Watcher) addPodEventHandler(podInformer cache.SharedIndexInformer) error {
 	_, err := podInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			if p, ok := obj.(*corev1.Pod); ok {
@@ -78,25 +129,20 @@ func (w *Watcher) Start(ctx context.Context) error {
 			}
 		},
 	})
-	if err != nil {
-		return err
-	}
-	w.factory.Start(w.stopCh)
-	if !cache.WaitForCacheSync(ctx.Done(), podInformer.HasSynced) {
-		return context.Canceled
-	}
-	return nil
+	return err
 }
 
 func (w *Watcher) Snapshot() []PodView {
-	lister := w.factory.Core().V1().Pods().Lister()
-	pods, err := lister.List(labels.Everything())
-	if err != nil {
-		return nil
-	}
-	out := make([]PodView, 0, len(pods))
-	for _, p := range pods {
-		out = append(out, toView(p))
+	var out []PodView
+	for _, factory := range w.factories {
+		lister := factory.Core().V1().Pods().Lister()
+		pods, err := lister.List(labels.Everything())
+		if err != nil {
+			return nil
+		}
+		for _, p := range pods {
+			out = append(out, toView(p))
+		}
 	}
 	return out
 }

@@ -35,6 +35,15 @@ func ListContexts(kubeconfigPath string) ([]ContextInfo, error) {
 	return out, nil
 }
 
+func WithCurrentContext(contexts []ContextInfo, contextName string) []ContextInfo {
+	out := make([]ContextInfo, len(contexts))
+	for i, c := range contexts {
+		c.Current = c.Name == contextName
+		out[i] = c
+	}
+	return out
+}
+
 func ClientForContext(kubeconfigPath, contextName string) (clientcmd.ClientConfig, error) {
 	loader := clientcmd.NewDefaultClientConfigLoadingRules()
 	if kubeconfigPath != "" {

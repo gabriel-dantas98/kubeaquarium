@@ -1,0 +1,275 @@
+NAMESPACE            NAME                                                     READY   STATUS      RESTARTS      AGE    IP            NODE                         NOMINATED NODE   READINESS GATES
+bench-noisy          pod/crashloop-db7bf9c6b-58j2d                            0/1     Pending     0             91s    <none>        <none>                       <none>           <none>
+bench-noisy          pod/crashloop-db7bf9c6b-5vtkn                            0/1     Pending     0             96s    <none>        <none>                       <none>           <none>
+bench-noisy          pod/crashloop-db7bf9c6b-65s5f                            0/1     Pending     0             90s    <none>        <none>                       <none>           <none>
+bench-noisy          pod/crashloop-db7bf9c6b-7tjp8                            0/1     Pending     0             90s    <none>        <none>                       <none>           <none>
+bench-noisy          pod/crashloop-db7bf9c6b-8fjsm                            0/1     Pending     0             97s    <none>        <none>                       <none>           <none>
+bench-noisy          pod/crashloop-db7bf9c6b-8kntx                            0/1     Error       3 (45s ago)   97s    10.244.0.46   kubeaquarium-control-plane   <none>           <none>
+bench-noisy          pod/crashloop-db7bf9c6b-92c2b                            0/1     Error       3 (54s ago)   99s    10.244.0.24   kubeaquarium-control-plane   <none>           <none>
+bench-noisy          pod/crashloop-db7bf9c6b-b95z8                            0/1     Pending     0             96s    <none>        <none>                       <none>           <none>
+bench-noisy          pod/crashloop-db7bf9c6b-bsgg5                            0/1     Pending     0             90s    <none>        <none>                       <none>           <none>
+bench-noisy          pod/crashloop-db7bf9c6b-ccqm4                            0/1     Pending     0             91s    <none>        <none>                       <none>           <none>
+bench-noisy          pod/crashloop-db7bf9c6b-cdnxz                            0/1     Error       3 (55s ago)   99s    10.244.0.27   kubeaquarium-control-plane   <none>           <none>
+bench-noisy          pod/crashloop-db7bf9c6b-gdkc8                            0/1     Pending     0             90s    <none>        <none>                       <none>           <none>
+bench-noisy          pod/crashloop-db7bf9c6b-kl4lh                            0/1     Pending     0             90s    <none>        <none>                       <none>           <none>
+bench-noisy          pod/crashloop-db7bf9c6b-kslqn                            0/1     Pending     0             91s    <none>        <none>                       <none>           <none>
+bench-noisy          pod/crashloop-db7bf9c6b-kzlqn                            0/1     Pending     0             90s    <none>        <none>                       <none>           <none>
+bench-noisy          pod/crashloop-db7bf9c6b-n79hm                            0/1     Pending     0             90s    <none>        <none>                       <none>           <none>
+bench-noisy          pod/crashloop-db7bf9c6b-pkg9l                            0/1     Error       3 (47s ago)   98s    10.244.0.36   kubeaquarium-control-plane   <none>           <none>
+bench-noisy          pod/crashloop-db7bf9c6b-q2jjw                            0/1     Pending     0             93s    <none>        <none>                       <none>           <none>
+bench-noisy          pod/crashloop-db7bf9c6b-q4gn9                            0/1     Pending     0             96s    <none>        <none>                       <none>           <none>
+bench-noisy          pod/crashloop-db7bf9c6b-q77q5                            0/1     Pending     0             90s    <none>        <none>                       <none>           <none>
+bench-noisy          pod/crashloop-db7bf9c6b-qf6gg                            0/1     Pending     0             93s    <none>        <none>                       <none>           <none>
+bench-noisy          pod/crashloop-db7bf9c6b-r9277                            0/1     Pending     0             96s    <none>        <none>                       <none>           <none>
+bench-noisy          pod/crashloop-db7bf9c6b-rjg5g                            0/1     Pending     0             90s    <none>        <none>                       <none>           <none>
+bench-noisy          pod/crashloop-db7bf9c6b-rn5wt                            0/1     Pending     0             93s    <none>        <none>                       <none>           <none>
+bench-noisy          pod/crashloop-db7bf9c6b-tqb95                            0/1     Pending     0             90s    <none>        <none>                       <none>           <none>
+bench-noisy          pod/crashloop-db7bf9c6b-trwx6                            0/1     Pending     0             91s    <none>        <none>                       <none>           <none>
+bench-noisy          pod/crashloop-db7bf9c6b-txz2t                            0/1     Pending     0             93s    <none>        <none>                       <none>           <none>
+bench-noisy          pod/crashloop-db7bf9c6b-vz7x9                            0/1     Pending     0             93s    <none>        <none>                       <none>           <none>
+bench-noisy          pod/crashloop-db7bf9c6b-w4x4g                            0/1     Pending     0             90s    <none>        <none>                       <none>           <none>
+bench-noisy          pod/crashloop-db7bf9c6b-w74r4                            0/1     Pending     0             93s    <none>        <none>                       <none>           <none>
+bench-noisy          pod/crashloop-db7bf9c6b-w94c6                            0/1     Pending     0             93s    <none>        <none>                       <none>           <none>
+bench-noisy          pod/crashloop-db7bf9c6b-wcct5                            0/1     Pending     0             93s    <none>        <none>                       <none>           <none>
+bench-noisy          pod/crashloop-db7bf9c6b-zbhbz                            0/1     Pending     0             90s    <none>        <none>                       <none>           <none>
+bench-noisy          pod/pending-7f97f7646f-r9p4l                             0/1     Pending     0             99s    <none>        <none>                       <none>           <none>
+bench-noisy          pod/pending-7f97f7646f-wpnd8                             0/1     Pending     0             99s    <none>        <none>                       <none>           <none>
+bench-payments       pod/api-sleeper-7467d44dc4-2kf69                         0/1     Pending     0             97s    <none>        <none>                       <none>           <none>
+bench-payments       pod/api-sleeper-7467d44dc4-49xzg                         0/1     Pending     0             95s    <none>        <none>                       <none>           <none>
+bench-payments       pod/api-sleeper-7467d44dc4-4bdkj                         1/1     Running     0             98s    10.244.0.38   kubeaquarium-control-plane   <none>           <none>
+bench-payments       pod/api-sleeper-7467d44dc4-4ds98                         1/1     Running     0             98s    10.244.0.43   kubeaquarium-control-plane   <none>           <none>
+bench-payments       pod/api-sleeper-7467d44dc4-4g9p9                         1/1     Running     0             98s    10.244.0.32   kubeaquarium-control-plane   <none>           <none>
+bench-payments       pod/api-sleeper-7467d44dc4-4lxd4                         0/1     Pending     0             95s    <none>        <none>                       <none>           <none>
+bench-payments       pod/api-sleeper-7467d44dc4-55b4r                         0/1     Pending     0             93s    <none>        <none>                       <none>           <none>
+bench-payments       pod/api-sleeper-7467d44dc4-55pvq                         1/1     Running     0             98s    10.244.0.30   kubeaquarium-control-plane   <none>           <none>
+bench-payments       pod/api-sleeper-7467d44dc4-5cbcl                         0/1     Pending     0             93s    <none>        <none>                       <none>           <none>
+bench-payments       pod/api-sleeper-7467d44dc4-5lxkt                         0/1     Pending     0             97s    <none>        <none>                       <none>           <none>
+bench-payments       pod/api-sleeper-7467d44dc4-6bb6x                         0/1     Pending     0             95s    <none>        <none>                       <none>           <none>
+bench-payments       pod/api-sleeper-7467d44dc4-7d42s                         0/1     Pending     0             97s    <none>        <none>                       <none>           <none>
+bench-payments       pod/api-sleeper-7467d44dc4-7qd5w                         0/1     Pending     0             95s    <none>        <none>                       <none>           <none>
+bench-payments       pod/api-sleeper-7467d44dc4-7wq2k                         0/1     Pending     0             96s    <none>        <none>                       <none>           <none>
+bench-payments       pod/api-sleeper-7467d44dc4-84z92                         1/1     Running     0             98s    10.244.0.39   kubeaquarium-control-plane   <none>           <none>
+bench-payments       pod/api-sleeper-7467d44dc4-89fxr                         0/1     Pending     0             93s    <none>        <none>                       <none>           <none>
+bench-payments       pod/api-sleeper-7467d44dc4-9k4rz                         0/1     Pending     0             96s    <none>        <none>                       <none>           <none>
+bench-payments       pod/api-sleeper-7467d44dc4-9npk8                         0/1     Pending     0             95s    <none>        <none>                       <none>           <none>
+bench-payments       pod/api-sleeper-7467d44dc4-9ttcl                         0/1     Pending     0             92s    <none>        <none>                       <none>           <none>
+bench-payments       pod/api-sleeper-7467d44dc4-b4g4r                         0/1     Pending     0             95s    <none>        <none>                       <none>           <none>
+bench-payments       pod/api-sleeper-7467d44dc4-b59d7                         0/1     Pending     0             95s    <none>        <none>                       <none>           <none>
+bench-payments       pod/api-sleeper-7467d44dc4-b6tfg                         0/1     Pending     0             95s    <none>        <none>                       <none>           <none>
+bench-payments       pod/api-sleeper-7467d44dc4-b6zql                         0/1     Pending     0             97s    <none>        <none>                       <none>           <none>
+bench-payments       pod/api-sleeper-7467d44dc4-b9csc                         0/1     Pending     0             93s    <none>        <none>                       <none>           <none>
+bench-payments       pod/api-sleeper-7467d44dc4-bbn5q                         0/1     Pending     0             97s    <none>        <none>                       <none>           <none>
+bench-payments       pod/api-sleeper-7467d44dc4-bn57f                         0/1     Pending     0             95s    <none>        <none>                       <none>           <none>
+bench-payments       pod/api-sleeper-7467d44dc4-cxhtk                         1/1     Running     0             98s    10.244.0.40   kubeaquarium-control-plane   <none>           <none>
+bench-payments       pod/api-sleeper-7467d44dc4-czhjp                         0/1     Pending     0             95s    <none>        <none>                       <none>           <none>
+bench-payments       pod/api-sleeper-7467d44dc4-dmz48                         0/1     Pending     0             95s    <none>        <none>                       <none>           <none>
+bench-payments       pod/api-sleeper-7467d44dc4-fct4c                         0/1     Pending     0             94s    <none>        <none>                       <none>           <none>
+bench-payments       pod/api-sleeper-7467d44dc4-flxsd                         0/1     Pending     0             95s    <none>        <none>                       <none>           <none>
+bench-payments       pod/api-sleeper-7467d44dc4-hhglc                         0/1     Pending     0             97s    <none>        <none>                       <none>           <none>
+bench-payments       pod/api-sleeper-7467d44dc4-jbmr5                         0/1     Pending     0             94s    <none>        <none>                       <none>           <none>
+bench-payments       pod/api-sleeper-7467d44dc4-jls9d                         0/1     Pending     0             93s    <none>        <none>                       <none>           <none>
+bench-payments       pod/api-sleeper-7467d44dc4-kl2mk                         0/1     Pending     0             95s    <none>        <none>                       <none>           <none>
+bench-payments       pod/api-sleeper-7467d44dc4-kmvv5                         1/1     Running     0             98s    10.244.0.41   kubeaquarium-control-plane   <none>           <none>
+bench-payments       pod/api-sleeper-7467d44dc4-l6575                         0/1     Pending     0             96s    <none>        <none>                       <none>           <none>
+bench-payments       pod/api-sleeper-7467d44dc4-l6jds                         0/1     Pending     0             93s    <none>        <none>                       <none>           <none>
+bench-payments       pod/api-sleeper-7467d44dc4-lhzwk                         1/1     Running     0             98s    10.244.0.29   kubeaquarium-control-plane   <none>           <none>
+bench-payments       pod/api-sleeper-7467d44dc4-llxqx                         0/1     Pending     0             93s    <none>        <none>                       <none>           <none>
+bench-payments       pod/api-sleeper-7467d44dc4-lmrwm                         0/1     Pending     0             97s    <none>        <none>                       <none>           <none>
+bench-payments       pod/api-sleeper-7467d44dc4-lps4c                         1/1     Running     0             98s    10.244.0.44   kubeaquarium-control-plane   <none>           <none>
+bench-payments       pod/api-sleeper-7467d44dc4-lsl9f                         0/1     Pending     0             97s    <none>        <none>                       <none>           <none>
+bench-payments       pod/api-sleeper-7467d44dc4-p9lzk                         0/1     Pending     0             97s    <none>        <none>                       <none>           <none>
+bench-payments       pod/api-sleeper-7467d44dc4-pflb2                         0/1     Pending     0             97s    <none>        <none>                       <none>           <none>
+bench-payments       pod/api-sleeper-7467d44dc4-q4d9g                         0/1     Pending     0             96s    <none>        <none>                       <none>           <none>
+bench-payments       pod/api-sleeper-7467d44dc4-q64zv                         1/1     Running     0             99s    10.244.0.26   kubeaquarium-control-plane   <none>           <none>
+bench-payments       pod/api-sleeper-7467d44dc4-q6sgd                         0/1     Pending     0             94s    <none>        <none>                       <none>           <none>
+bench-payments       pod/api-sleeper-7467d44dc4-q7pmb                         0/1     Pending     0             97s    <none>        <none>                       <none>           <none>
+bench-payments       pod/api-sleeper-7467d44dc4-qbl8h                         1/1     Running     0             99s    10.244.0.25   kubeaquarium-control-plane   <none>           <none>
+bench-payments       pod/api-sleeper-7467d44dc4-qpdfc                         0/1     Pending     0             95s    <none>        <none>                       <none>           <none>
+bench-payments       pod/api-sleeper-7467d44dc4-rd44p                         0/1     Pending     0             97s    <none>        <none>                       <none>           <none>
+bench-payments       pod/api-sleeper-7467d44dc4-rgqsk                         1/1     Running     0             98s    10.244.0.42   kubeaquarium-control-plane   <none>           <none>
+bench-payments       pod/api-sleeper-7467d44dc4-s5rzj                         0/1     Pending     0             95s    <none>        <none>                       <none>           <none>
+bench-payments       pod/api-sleeper-7467d44dc4-sh25x                         1/1     Running     0             98s    10.244.0.37   kubeaquarium-control-plane   <none>           <none>
+bench-payments       pod/api-sleeper-7467d44dc4-sqx22                         0/1     Pending     0             96s    <none>        <none>                       <none>           <none>
+bench-payments       pod/api-sleeper-7467d44dc4-t6556                         0/1     Pending     0             93s    <none>        <none>                       <none>           <none>
+bench-payments       pod/api-sleeper-7467d44dc4-tgfms                         1/1     Running     0             100s   10.244.0.23   kubeaquarium-control-plane   <none>           <none>
+bench-payments       pod/api-sleeper-7467d44dc4-tggz2                         0/1     Pending     0             95s    <none>        <none>                       <none>           <none>
+bench-payments       pod/api-sleeper-7467d44dc4-tkxtc                         1/1     Running     0             99s    10.244.0.28   kubeaquarium-control-plane   <none>           <none>
+bench-payments       pod/api-sleeper-7467d44dc4-ttp8d                         0/1     Pending     0             96s    <none>        <none>                       <none>           <none>
+bench-payments       pod/api-sleeper-7467d44dc4-ttxln                         0/1     Pending     0             95s    <none>        <none>                       <none>           <none>
+bench-payments       pod/api-sleeper-7467d44dc4-v2qbt                         0/1     Pending     0             95s    <none>        <none>                       <none>           <none>
+bench-payments       pod/api-sleeper-7467d44dc4-vfzr4                         1/1     Running     0             98s    10.244.0.33   kubeaquarium-control-plane   <none>           <none>
+bench-payments       pod/api-sleeper-7467d44dc4-vj9x7                         0/1     Pending     0             96s    <none>        <none>                       <none>           <none>
+bench-payments       pod/api-sleeper-7467d44dc4-w2slx                         0/1     Pending     0             96s    <none>        <none>                       <none>           <none>
+bench-payments       pod/api-sleeper-7467d44dc4-w4f2l                         0/1     Pending     0             97s    <none>        <none>                       <none>           <none>
+bench-payments       pod/api-sleeper-7467d44dc4-wbt6n                         0/1     Pending     0             95s    <none>        <none>                       <none>           <none>
+bench-payments       pod/api-sleeper-7467d44dc4-wd4lf                         0/1     Pending     0             97s    <none>        <none>                       <none>           <none>
+bench-payments       pod/api-sleeper-7467d44dc4-wjjmf                         0/1     Pending     0             92s    <none>        <none>                       <none>           <none>
+bench-payments       pod/api-sleeper-7467d44dc4-wnmvm                         0/1     Pending     0             97s    <none>        <none>                       <none>           <none>
+bench-payments       pod/api-sleeper-7467d44dc4-xkn2r                         0/1     Pending     0             95s    <none>        <none>                       <none>           <none>
+bench-payments       pod/api-sleeper-7467d44dc4-xmt96                         0/1     Pending     0             94s    <none>        <none>                       <none>           <none>
+bench-payments       pod/api-sleeper-7467d44dc4-xxfjk                         0/1     Pending     0             92s    <none>        <none>                       <none>           <none>
+bench-payments       pod/api-sleeper-7467d44dc4-z2gcx                         0/1     Pending     0             92s    <none>        <none>                       <none>           <none>
+bench-payments       pod/api-sleeper-7467d44dc4-zr9ls                         0/1     Pending     0             97s    <none>        <none>                       <none>           <none>
+bench-payments       pod/api-sleeper-7467d44dc4-zv7qf                         0/1     Pending     0             93s    <none>        <none>                       <none>           <none>
+bench-payments       pod/ledger-0                                             1/1     Running     0             100s   10.244.0.19   kubeaquarium-control-plane   <none>           <none>
+bench-payments       pod/ledger-1                                             0/1     Pending     0             69s    <none>        <none>                       <none>           <none>
+bench-platform       pod/completed-report-m7vl2                               0/1     Completed   0             100s   10.244.0.21   kubeaquarium-control-plane   <none>           <none>
+bench-platform       pod/node-agent-v84fg                                     1/1     Running     0             100s   10.244.0.20   kubeaquarium-control-plane   <none>           <none>
+bench-platform       pod/scheduled-report-29715585-jb2w7                      0/1     Completed   0             55s    10.244.0.47   kubeaquarium-control-plane   <none>           <none>
+bench-web            pod/web-sleeper-7b48cbb58f-25trq                         0/1     Pending     0             92s    <none>        <none>                       <none>           <none>
+bench-web            pod/web-sleeper-7b48cbb58f-2lm28                         0/1     Pending     0             96s    <none>        <none>                       <none>           <none>
+bench-web            pod/web-sleeper-7b48cbb58f-2x6qm                         0/1     Pending     0             92s    <none>        <none>                       <none>           <none>
+bench-web            pod/web-sleeper-7b48cbb58f-47wqv                         0/1     Pending     0             92s    <none>        <none>                       <none>           <none>
+bench-web            pod/web-sleeper-7b48cbb58f-4bshn                         0/1     Pending     0             94s    <none>        <none>                       <none>           <none>
+bench-web            pod/web-sleeper-7b48cbb58f-4cn59                         0/1     Pending     0             96s    <none>        <none>                       <none>           <none>
+bench-web            pod/web-sleeper-7b48cbb58f-4tfjw                         1/1     Running     0             99s    10.244.0.31   kubeaquarium-control-plane   <none>           <none>
+bench-web            pod/web-sleeper-7b48cbb58f-5l649                         0/1     Pending     0             90s    <none>        <none>                       <none>           <none>
+bench-web            pod/web-sleeper-7b48cbb58f-5q8b9                         0/1     Pending     0             90s    <none>        <none>                       <none>           <none>
+bench-web            pod/web-sleeper-7b48cbb58f-5r9x9                         0/1     Pending     0             98s    <none>        <none>                       <none>           <none>
+bench-web            pod/web-sleeper-7b48cbb58f-5svpw                         0/1     Pending     0             92s    <none>        <none>                       <none>           <none>
+bench-web            pod/web-sleeper-7b48cbb58f-64wch                         0/1     Pending     0             89s    <none>        <none>                       <none>           <none>
+bench-web            pod/web-sleeper-7b48cbb58f-669f5                         0/1     Pending     0             94s    <none>        <none>                       <none>           <none>
+bench-web            pod/web-sleeper-7b48cbb58f-6ljrm                         0/1     Pending     0             94s    <none>        <none>                       <none>           <none>
+bench-web            pod/web-sleeper-7b48cbb58f-6vc9g                         0/1     Pending     0             90s    <none>        <none>                       <none>           <none>
+bench-web            pod/web-sleeper-7b48cbb58f-6wbll                         0/1     Pending     0             91s    <none>        <none>                       <none>           <none>
+bench-web            pod/web-sleeper-7b48cbb58f-7cjbm                         0/1     Pending     0             92s    <none>        <none>                       <none>           <none>
+bench-web            pod/web-sleeper-7b48cbb58f-7n7bk                         0/1     Pending     0             91s    <none>        <none>                       <none>           <none>
+bench-web            pod/web-sleeper-7b48cbb58f-868gp                         0/1     Pending     0             94s    <none>        <none>                       <none>           <none>
+bench-web            pod/web-sleeper-7b48cbb58f-88wt5                         0/1     Pending     0             96s    <none>        <none>                       <none>           <none>
+bench-web            pod/web-sleeper-7b48cbb58f-8cwzz                         0/1     Pending     0             98s    <none>        <none>                       <none>           <none>
+bench-web            pod/web-sleeper-7b48cbb58f-8lfs7                         0/1     Pending     0             94s    <none>        <none>                       <none>           <none>
+bench-web            pod/web-sleeper-7b48cbb58f-8q64v                         0/1     Pending     0             94s    <none>        <none>                       <none>           <none>
+bench-web            pod/web-sleeper-7b48cbb58f-8vmjc                         0/1     Pending     0             89s    <none>        <none>                       <none>           <none>
+bench-web            pod/web-sleeper-7b48cbb58f-8z694                         0/1     Pending     0             92s    <none>        <none>                       <none>           <none>
+bench-web            pod/web-sleeper-7b48cbb58f-97gjs                         0/1     Pending     0             94s    <none>        <none>                       <none>           <none>
+bench-web            pod/web-sleeper-7b48cbb58f-9j985                         0/1     Pending     0             91s    <none>        <none>                       <none>           <none>
+bench-web            pod/web-sleeper-7b48cbb58f-9knzf                         0/1     Pending     0             92s    <none>        <none>                       <none>           <none>
+bench-web            pod/web-sleeper-7b48cbb58f-9kvlm                         0/1     Pending     0             92s    <none>        <none>                       <none>           <none>
+bench-web            pod/web-sleeper-7b48cbb58f-9ntct                         0/1     Pending     0             91s    <none>        <none>                       <none>           <none>
+bench-web            pod/web-sleeper-7b48cbb58f-9pk4p                         0/1     Pending     0             92s    <none>        <none>                       <none>           <none>
+bench-web            pod/web-sleeper-7b48cbb58f-9wdvf                         0/1     Pending     0             91s    <none>        <none>                       <none>           <none>
+bench-web            pod/web-sleeper-7b48cbb58f-bbh7w                         0/1     Pending     0             91s    <none>        <none>                       <none>           <none>
+bench-web            pod/web-sleeper-7b48cbb58f-brhpm                         1/1     Running     0             98s    10.244.0.45   kubeaquarium-control-plane   <none>           <none>
+bench-web            pod/web-sleeper-7b48cbb58f-c8m29                         0/1     Pending     0             94s    <none>        <none>                       <none>           <none>
+bench-web            pod/web-sleeper-7b48cbb58f-ctdb2                         0/1     Pending     0             94s    <none>        <none>                       <none>           <none>
+bench-web            pod/web-sleeper-7b48cbb58f-f9v4d                         0/1     Pending     0             92s    <none>        <none>                       <none>           <none>
+bench-web            pod/web-sleeper-7b48cbb58f-fhjkq                         0/1     Pending     0             89s    <none>        <none>                       <none>           <none>
+bench-web            pod/web-sleeper-7b48cbb58f-fjd2n                         0/1     Pending     0             98s    <none>        <none>                       <none>           <none>
+bench-web            pod/web-sleeper-7b48cbb58f-fjxbd                         0/1     Pending     0             89s    <none>        <none>                       <none>           <none>
+bench-web            pod/web-sleeper-7b48cbb58f-fs26h                         0/1     Pending     0             89s    <none>        <none>                       <none>           <none>
+bench-web            pod/web-sleeper-7b48cbb58f-fswpd                         0/1     Pending     0             94s    <none>        <none>                       <none>           <none>
+bench-web            pod/web-sleeper-7b48cbb58f-grls6                         1/1     Running     0             98s    10.244.0.34   kubeaquarium-control-plane   <none>           <none>
+bench-web            pod/web-sleeper-7b48cbb58f-hdqx5                         0/1     Pending     0             94s    <none>        <none>                       <none>           <none>
+bench-web            pod/web-sleeper-7b48cbb58f-hf9b5                         0/1     Pending     0             91s    <none>        <none>                       <none>           <none>
+bench-web            pod/web-sleeper-7b48cbb58f-j4pbs                         0/1     Pending     0             96s    <none>        <none>                       <none>           <none>
+bench-web            pod/web-sleeper-7b48cbb58f-j7v8z                         0/1     Pending     0             96s    <none>        <none>                       <none>           <none>
+bench-web            pod/web-sleeper-7b48cbb58f-j97tz                         0/1     Pending     0             94s    <none>        <none>                       <none>           <none>
+bench-web            pod/web-sleeper-7b48cbb58f-jcsw6                         0/1     Pending     0             89s    <none>        <none>                       <none>           <none>
+bench-web            pod/web-sleeper-7b48cbb58f-k87pr                         0/1     Pending     0             92s    <none>        <none>                       <none>           <none>
+bench-web            pod/web-sleeper-7b48cbb58f-lmj86                         0/1     Pending     0             96s    <none>        <none>                       <none>           <none>
+bench-web            pod/web-sleeper-7b48cbb58f-m65sv                         0/1     Pending     0             92s    <none>        <none>                       <none>           <none>
+bench-web            pod/web-sleeper-7b48cbb58f-mctxp                         0/1     Pending     0             91s    <none>        <none>                       <none>           <none>
+bench-web            pod/web-sleeper-7b48cbb58f-mwhfb                         0/1     Pending     0             91s    <none>        <none>                       <none>           <none>
+bench-web            pod/web-sleeper-7b48cbb58f-n8zvh                         0/1     Pending     0             92s    <none>        <none>                       <none>           <none>
+bench-web            pod/web-sleeper-7b48cbb58f-ndlvx                         0/1     Pending     0             91s    <none>        <none>                       <none>           <none>
+bench-web            pod/web-sleeper-7b48cbb58f-nfdgh                         0/1     Pending     0             91s    <none>        <none>                       <none>           <none>
+bench-web            pod/web-sleeper-7b48cbb58f-nk5fp                         1/1     Running     0             100s   10.244.0.22   kubeaquarium-control-plane   <none>           <none>
+bench-web            pod/web-sleeper-7b48cbb58f-p5mdr                         0/1     Pending     0             94s    <none>        <none>                       <none>           <none>
+bench-web            pod/web-sleeper-7b48cbb58f-qhwvd                         0/1     Pending     0             91s    <none>        <none>                       <none>           <none>
+bench-web            pod/web-sleeper-7b48cbb58f-qqcg6                         0/1     Pending     0             92s    <none>        <none>                       <none>           <none>
+bench-web            pod/web-sleeper-7b48cbb58f-qvjkh                         0/1     Pending     0             94s    <none>        <none>                       <none>           <none>
+bench-web            pod/web-sleeper-7b48cbb58f-rddqr                         0/1     Pending     0             91s    <none>        <none>                       <none>           <none>
+bench-web            pod/web-sleeper-7b48cbb58f-rh2hq                         0/1     Pending     0             94s    <none>        <none>                       <none>           <none>
+bench-web            pod/web-sleeper-7b48cbb58f-rhgw7                         0/1     Pending     0             89s    <none>        <none>                       <none>           <none>
+bench-web            pod/web-sleeper-7b48cbb58f-s29ph                         0/1     Pending     0             90s    <none>        <none>                       <none>           <none>
+bench-web            pod/web-sleeper-7b48cbb58f-scttl                         0/1     Pending     0             94s    <none>        <none>                       <none>           <none>
+bench-web            pod/web-sleeper-7b48cbb58f-snpql                         0/1     Pending     0             91s    <none>        <none>                       <none>           <none>
+bench-web            pod/web-sleeper-7b48cbb58f-t74g5                         1/1     Running     0             98s    10.244.0.35   kubeaquarium-control-plane   <none>           <none>
+bench-web            pod/web-sleeper-7b48cbb58f-tqszq                         0/1     Pending     0             97s    <none>        <none>                       <none>           <none>
+bench-web            pod/web-sleeper-7b48cbb58f-vcjnw                         0/1     Pending     0             91s    <none>        <none>                       <none>           <none>
+bench-web            pod/web-sleeper-7b48cbb58f-vgh2m                         0/1     Pending     0             92s    <none>        <none>                       <none>           <none>
+bench-web            pod/web-sleeper-7b48cbb58f-wm7xp                         0/1     Pending     0             92s    <none>        <none>                       <none>           <none>
+bench-web            pod/web-sleeper-7b48cbb58f-wqngs                         0/1     Pending     0             89s    <none>        <none>                       <none>           <none>
+bench-web            pod/web-sleeper-7b48cbb58f-wwbvg                         0/1     Pending     0             96s    <none>        <none>                       <none>           <none>
+bench-web            pod/web-sleeper-7b48cbb58f-xftsb                         0/1     Pending     0             89s    <none>        <none>                       <none>           <none>
+bench-web            pod/web-sleeper-7b48cbb58f-xmv2q                         0/1     Pending     0             91s    <none>        <none>                       <none>           <none>
+kube-system          pod/coredns-589f44dc88-jj2q6                             1/1     Running     0             112s   10.244.0.2    kubeaquarium-control-plane   <none>           <none>
+kube-system          pod/coredns-589f44dc88-xgtqt                             1/1     Running     0             112s   10.244.0.4    kubeaquarium-control-plane   <none>           <none>
+kube-system          pod/etcd-kubeaquarium-control-plane                      1/1     Running     0             119s   172.22.0.2    kubeaquarium-control-plane   <none>           <none>
+kube-system          pod/kindnet-2fwln                                        1/1     Running     0             112s   172.22.0.2    kubeaquarium-control-plane   <none>           <none>
+kube-system          pod/kube-apiserver-kubeaquarium-control-plane            1/1     Running     0             119s   172.22.0.2    kubeaquarium-control-plane   <none>           <none>
+kube-system          pod/kube-controller-manager-kubeaquarium-control-plane   1/1     Running     0             119s   172.22.0.2    kubeaquarium-control-plane   <none>           <none>
+kube-system          pod/kube-proxy-cn6ks                                     1/1     Running     0             112s   172.22.0.2    kubeaquarium-control-plane   <none>           <none>
+kube-system          pod/kube-scheduler-kubeaquarium-control-plane            1/1     Running     0             119s   172.22.0.2    kubeaquarium-control-plane   <none>           <none>
+local-path-storage   pod/local-path-provisioner-855c7b7774-trv54              1/1     Running     0             112s   10.244.0.3    kubeaquarium-control-plane   <none>           <none>
+monitoring           pod/grafana-fake-66d5775fc9-lrg6r                        1/1     Running     0             101s   10.244.0.12   kubeaquarium-control-plane   <none>           <none>
+monitoring           pod/grafana-fake-66d5775fc9-xpjwt                        0/1     Pending     0             101s   <none>        <none>                       <none>           <none>
+monitoring           pod/prometheus-fake-7ccfb864b6-45sp2                     0/1     Pending     0             101s   <none>        <none>                       <none>           <none>
+payments             pod/crashloop-ccf4f7c64-4mgwp                            0/1     Error       3 (60s ago)   100s   10.244.0.18   kubeaquarium-control-plane   <none>           <none>
+payments             pod/redis-69b984c64-n2knp                                0/1     Pending     0             101s   <none>        <none>                       <none>           <none>
+payments             pod/redis-69b984c64-nf56x                                1/1     Running     0             101s   10.244.0.11   kubeaquarium-control-plane   <none>           <none>
+payments             pod/redis-69b984c64-qgt5n                                0/1     Pending     0             101s   <none>        <none>                       <none>           <none>
+payments             pod/worker-5cb55b5c8-57cj2                               1/1     Running     0             101s   10.244.0.14   kubeaquarium-control-plane   <none>           <none>
+payments             pod/worker-5cb55b5c8-dqjbl                               1/1     Running     0             101s   10.244.0.15   kubeaquarium-control-plane   <none>           <none>
+payments             pod/worker-5cb55b5c8-fhtwp                               1/1     Running     0             101s   10.244.0.17   kubeaquarium-control-plane   <none>           <none>
+payments             pod/worker-5cb55b5c8-frzgh                               1/1     Running     0             101s   10.244.0.13   kubeaquarium-control-plane   <none>           <none>
+payments             pod/worker-5cb55b5c8-j2mkj                               1/1     Running     0             101s   10.244.0.16   kubeaquarium-control-plane   <none>           <none>
+web                  pod/httpbin-76dbdc6fcc-lpf84                             1/1     Running     0             101s   10.244.0.10   kubeaquarium-control-plane   <none>           <none>
+web                  pod/httpbin-76dbdc6fcc-pmrj2                             1/1     Running     0             101s   10.244.0.9    kubeaquarium-control-plane   <none>           <none>
+web                  pod/nginx-5d9bc6447-86vs8                                1/1     Running     0             101s   10.244.0.8    kubeaquarium-control-plane   <none>           <none>
+web                  pod/nginx-5d9bc6447-h8jv2                                1/1     Running     0             101s   10.244.0.5    kubeaquarium-control-plane   <none>           <none>
+web                  pod/nginx-5d9bc6447-t8srr                                1/1     Running     0             101s   10.244.0.6    kubeaquarium-control-plane   <none>           <none>
+web                  pod/nginx-5d9bc6447-z2cnz                                1/1     Running     0             101s   10.244.0.7    kubeaquarium-control-plane   <none>           <none>
+web                  pod/pending-pod-dcbb776d5-xds4z                          0/1     Pending     0             100s   <none>        <none>                       <none>           <none>
+
+NAMESPACE     NAME                 TYPE        CLUSTER-IP      EXTERNAL-IP   PORT(S)                  AGE    SELECTOR
+bench-web     service/web-svc      ClusterIP   10.96.232.146   <none>        80/TCP                   100s   app=web-sleeper
+default       service/kubernetes   ClusterIP   10.96.0.1       <none>        443/TCP                  2m     <none>
+kube-system   service/kube-dns     ClusterIP   10.96.0.10      <none>        53/UDP,53/TCP,9153/TCP   119s   k8s-app=kube-dns
+
+NAMESPACE        NAME                        DESIRED   CURRENT   READY   UP-TO-DATE   AVAILABLE   NODE SELECTOR            AGE    CONTAINERS    IMAGES                                          SELECTOR
+bench-platform   daemonset.apps/node-agent   1         1         1       1            1           <none>                   100s   agent         busybox:1.36                                    app=node-agent
+kube-system      daemonset.apps/kindnet      1         1         1       1            1           kubernetes.io/os=linux   118s   kindnet-cni   docker.io/kindest/kindnetd:v20260528-9350166c   app=kindnet
+kube-system      daemonset.apps/kube-proxy   1         1         1       1            1           kubernetes.io/os=linux   119s   kube-proxy    registry.k8s.io/kube-proxy:v1.36.1              k8s-app=kube-proxy
+
+NAMESPACE            NAME                                     READY   UP-TO-DATE   AVAILABLE   AGE    CONTAINERS               IMAGES                                                        SELECTOR
+bench-noisy          deployment.apps/crashloop                0/33    33           0           100s   bad                      busybox:1.36                                                  app=crashloop
+bench-noisy          deployment.apps/pending                  0/2     2            0           100s   pending                  busybox:1.36                                                  app=pending
+bench-payments       deployment.apps/api-sleeper              16/77   77           16          100s   api                      busybox:1.36                                                  app=api-sleeper
+bench-web            deployment.apps/web-sleeper              5/77    77           5           100s   app                      busybox:1.36                                                  app=web-sleeper
+kube-system          deployment.apps/coredns                  2/2     2            2           119s   coredns                  registry.k8s.io/coredns/coredns:v1.14.2                       k8s-app=kube-dns
+local-path-storage   deployment.apps/local-path-provisioner   1/1     1            1           118s   local-path-provisioner   docker.io/kindest/local-path-provisioner:v20260521-9fb22683   app=local-path-provisioner
+monitoring           deployment.apps/grafana-fake             1/2     2            1           101s   graf                     nginx:1.27-alpine                                             app=graf
+monitoring           deployment.apps/prometheus-fake          0/1     1            0           101s   prom                     nginx:1.27-alpine                                             app=prom
+payments             deployment.apps/crashloop                0/1     1            0           101s   bad                      busybox:1.36                                                  app=crashloop
+payments             deployment.apps/redis                    1/3     3            1           101s   redis                    redis:7-alpine                                                app=redis
+payments             deployment.apps/worker                   5/5     5            5           101s   worker                   busybox:1.36                                                  app=worker
+web                  deployment.apps/httpbin                  2/2     2            2           101s   httpbin                  kennethreitz/httpbin                                          app=httpbin
+web                  deployment.apps/nginx                    4/4     4            4           101s   nginx                    nginx:1.27-alpine                                             app=nginx
+web                  deployment.apps/pending-pod              0/1     1            0           101s   c                        busybox:1.36                                                  app=pending
+
+NAMESPACE            NAME                                                DESIRED   CURRENT   READY   AGE    CONTAINERS               IMAGES                                                        SELECTOR
+bench-noisy          replicaset.apps/crashloop-db7bf9c6b                 33        33        0       100s   bad                      busybox:1.36                                                  app=crashloop,pod-template-hash=db7bf9c6b
+bench-noisy          replicaset.apps/pending-7f97f7646f                  2         2         0       99s    pending                  busybox:1.36                                                  app=pending,pod-template-hash=7f97f7646f
+bench-payments       replicaset.apps/api-sleeper-7467d44dc4              77        77        16      100s   api                      busybox:1.36                                                  app=api-sleeper,pod-template-hash=7467d44dc4
+bench-web            replicaset.apps/web-sleeper-7b48cbb58f              77        77        5       100s   app                      busybox:1.36                                                  app=web-sleeper,pod-template-hash=7b48cbb58f
+kube-system          replicaset.apps/coredns-589f44dc88                  2         2         2       113s   coredns                  registry.k8s.io/coredns/coredns:v1.14.2                       k8s-app=kube-dns,pod-template-hash=589f44dc88
+local-path-storage   replicaset.apps/local-path-provisioner-855c7b7774   1         1         1       113s   local-path-provisioner   docker.io/kindest/local-path-provisioner:v20260521-9fb22683   app=local-path-provisioner,pod-template-hash=855c7b7774
+monitoring           replicaset.apps/grafana-fake-66d5775fc9             2         2         1       101s   graf                     nginx:1.27-alpine                                             app=graf,pod-template-hash=66d5775fc9
+monitoring           replicaset.apps/prometheus-fake-7ccfb864b6          1         1         0       101s   prom                     nginx:1.27-alpine                                             app=prom,pod-template-hash=7ccfb864b6
+payments             replicaset.apps/crashloop-ccf4f7c64                 1         1         0       101s   bad                      busybox:1.36                                                  app=crashloop,pod-template-hash=ccf4f7c64
+payments             replicaset.apps/redis-69b984c64                     3         3         1       101s   redis                    redis:7-alpine                                                app=redis,pod-template-hash=69b984c64
+payments             replicaset.apps/worker-5cb55b5c8                    5         5         5       101s   worker                   busybox:1.36                                                  app=worker,pod-template-hash=5cb55b5c8
+web                  replicaset.apps/httpbin-76dbdc6fcc                  2         2         2       101s   httpbin                  kennethreitz/httpbin                                          app=httpbin,pod-template-hash=76dbdc6fcc
+web                  replicaset.apps/nginx-5d9bc6447                     4         4         4       101s   nginx                    nginx:1.27-alpine                                             app=nginx,pod-template-hash=5d9bc6447
+web                  replicaset.apps/pending-pod-dcbb776d5               1         1         0       100s   c                        busybox:1.36                                                  app=pending,pod-template-hash=dcbb776d5
+
+NAMESPACE        NAME                      READY   AGE    CONTAINERS   IMAGES
+bench-payments   statefulset.apps/ledger   1/33    100s   ledger       busybox:1.36
+
+NAMESPACE        NAME                             SCHEDULE       TIMEZONE   SUSPEND   ACTIVE   LAST SCHEDULE   AGE    CONTAINERS   IMAGES         SELECTOR
+bench-platform   cronjob.batch/scheduled-report   */15 * * * *   <none>     False     0        55s             100s   report       busybox:1.36   <none>
+
+NAMESPACE        NAME                                  STATUS     COMPLETIONS   DURATION   AGE    CONTAINERS   IMAGES         SELECTOR
+bench-platform   job.batch/completed-report            Complete   1/1           32s        100s   report       busybox:1.36   batch.kubernetes.io/controller-uid=1617ca7b-d71d-424e-a6c1-ed8d4f208489
+bench-platform   job.batch/scheduled-report-29715585   Complete   1/1           3s         55s    report       busybox:1.36   batch.kubernetes.io/controller-uid=246463ea-cdbc-40c5-b5eb-ddd1b4e64a7c

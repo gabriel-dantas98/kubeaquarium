@@ -3,6 +3,7 @@ import { PodStore, Stream } from './stream';
 import { DetailPanel } from './hud/detail';
 import { SearchHUD, ALL, type Filter } from './hud/search';
 import { LabelLayer } from './hud/labels';
+import type { PodView, StreamEvent } from './types';
 
 const canvas = document.getElementById('scene') as HTMLCanvasElement;
 const scene = new AquariumScene(canvas);
@@ -28,6 +29,9 @@ const search = new SearchHUD({
 
 let activeFilter: Filter = ALL;
 let activeQuery = '';
+let namespaceCounts = new Map<string, number>();
+let pendingEvents: StreamEvent[] = [];
+let flushScheduled = false;
 
 function applyFilter(filter: Filter, raw: string) {
   activeFilter = filter;
@@ -37,17 +41,8 @@ function applyFilter(filter: Filter, raw: string) {
 }
 
 const stream = new Stream((ev) => {
-  store.apply(ev);
-  reconcile();
-  if (ev.type === 'deleted') {
-    scene.removePod(ev.uid);
-    if (detail.isOpenFor(ev.uid)) {
-      detail.hide();
-      scene.setFocused(null);
-    }
-  } else if (ev.type === 'updated' || ev.type === 'added') {
-    if (detail.isOpenFor(ev.pod.uid)) detail.show(ev.pod);
-  }
+  pendingEvents.push(ev);
+  scheduleFlush();
 });
 stream.onConnectionChange = (ok) => {
   document.getElementById('ws-dot')?.classList.toggle('live', ok);
@@ -94,16 +89,74 @@ fetch('/api/contexts').then(r => r.json()).then((list: any[]) => {
   document.getElementById('ctx-name')!.textContent = cur ? cur.name : (list[0]?.name ?? '—');
 });
 
-function reconcile() {
-  const counts = new Map<string, number>();
-  for (const p of store.pods.values()) {
-    counts.set(p.namespace, (counts.get(p.namespace) ?? 0) + 1);
+function scheduleFlush() {
+  if (flushScheduled) return;
+  flushScheduled = true;
+  requestAnimationFrame(flushPendingEvents);
+}
+
+function flushPendingEvents() {
+  flushScheduled = false;
+  if (pendingEvents.length === 0) return;
+
+  const events = pendingEvents;
+  pendingEvents = [];
+  const changedPods = new Set<string>();
+  let needsFullReconcile = false;
+  let namespaceLayoutDirty = false;
+
+  for (const ev of events) {
+    if (ev.type === 'snapshot') {
+      store.apply(ev);
+      namespaceCounts = countNamespaces(store.pods.values());
+      needsFullReconcile = true;
+      namespaceLayoutDirty = true;
+      changedPods.clear();
+      continue;
+    }
+
+    if (ev.type === 'deleted') {
+      const previous = store.pods.get(ev.uid);
+      store.apply(ev);
+      if (previous) {
+        decrementNamespace(previous.namespace);
+        namespaceLayoutDirty = true;
+      }
+      changedPods.delete(ev.uid);
+      scene.removePod(ev.uid);
+      if (detail.isOpenFor(ev.uid)) {
+        detail.hide();
+        scene.setFocused(null);
+      }
+      continue;
+    }
+
+    const previous = store.pods.get(ev.pod.uid);
+    store.apply(ev);
+    if (!previous) {
+      incrementNamespace(ev.pod.namespace);
+      namespaceLayoutDirty = true;
+    } else if (previous.namespace !== ev.pod.namespace) {
+      decrementNamespace(previous.namespace);
+      incrementNamespace(ev.pod.namespace);
+      namespaceLayoutDirty = true;
+    }
+    changedPods.add(ev.pod.uid);
+    if (detail.isOpenFor(ev.pod.uid)) detail.show(ev.pod);
   }
-  scene.rebuildNamespaceBubbles(counts);
+
+  if (namespaceLayoutDirty) {
+    scene.rebuildNamespaceBubbles(namespaceCounts);
+  }
 
   const ns2idx = new Map<string, number>();
-  for (const p of store.pods.values()) {
-    scene.upsertPod(p, ns2idx);
+  if (needsFullReconcile) {
+    for (const p of store.pods.values()) scene.upsertPod(p, ns2idx);
+  } else {
+    for (const uid of changedPods) {
+      const p = store.pods.get(uid);
+      if (p) scene.upsertPod(p, ns2idx);
+    }
   }
 
   document.getElementById('pod-count')!.textContent = `${store.pods.size} pods`;
@@ -114,6 +167,24 @@ function reconcile() {
     search.setCount(0, store.pods.size, false);
   }
   updateEmptyState();
+}
+
+function countNamespaces(pods: Iterable<PodView>): Map<string, number> {
+  const counts = new Map<string, number>();
+  for (const p of pods) {
+    counts.set(p.namespace, (counts.get(p.namespace) ?? 0) + 1);
+  }
+  return counts;
+}
+
+function incrementNamespace(namespace: string) {
+  namespaceCounts.set(namespace, (namespaceCounts.get(namespace) ?? 0) + 1);
+}
+
+function decrementNamespace(namespace: string) {
+  const next = (namespaceCounts.get(namespace) ?? 0) - 1;
+  if (next > 0) namespaceCounts.set(namespace, next);
+  else namespaceCounts.delete(namespace);
 }
 
 let connected = false;

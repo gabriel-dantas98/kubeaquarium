@@ -8,7 +8,9 @@ import type { Filter } from './hud/search';
 import { ALL } from './hud/search';
 import type { LabelTarget } from './hud/labels';
 
-const MAX_INSTANCES = 5000;
+const MAX_INSTANCES = 20000;
+const BOIDS_INSTANCE_LIMIT = 1200;
+const BOIDS_MIN_FPS = 24;
 
 const COLORS = {
   running: new THREE.Color(0x2496ed),
@@ -66,6 +68,8 @@ export class AquariumScene {
   private dummyScale = new THREE.Vector3();
   private raycaster = new THREE.Raycaster();
   private pointer = new THREE.Vector2();
+  private pixelRatio = 1;
+  private nextQualityCheckAt = 0;
 
   onSelect?: (uid: string) => void;
   fpsAvg = 60;
@@ -80,7 +84,8 @@ export class AquariumScene {
 
   constructor(private canvas: HTMLCanvasElement) {
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance', preserveDrawingBuffer: true });
-    this.renderer.setPixelRatio(Math.min(2, window.devicePixelRatio));
+    this.pixelRatio = this.pixelRatioForLoad();
+    this.renderer.setPixelRatio(this.pixelRatio);
     this.renderer.setSize(window.innerWidth, window.innerHeight, false);
     this.renderer.setClearColor(0x04101e, 1);
 
@@ -129,6 +134,7 @@ export class AquariumScene {
 
   rebuildNamespaceBubbles(podsByNs: Map<string, number>) {
     const names = [...podsByNs.keys()];
+    const previousLayouts = this.layouts;
     const layouts = layoutNamespaces(names, podsByNs);
     this.layouts = layouts;
 
@@ -141,14 +147,22 @@ export class AquariumScene {
     }
     for (const [name, layout] of layouts) {
       let group = this.bubbles.get(name);
+      const previous = previousLayouts.get(name);
       if (!group) {
         group = buildBubble(layout);
         this.bubbleRoot.add(group);
         this.bubbles.set(name, group);
         this.bubbleMembers.set(name, new Set());
+      } else if (!previous || Math.abs(previous.radius - layout.radius) > 0.1) {
+        this.bubbleRoot.remove(group);
+        disposeGroup(group);
+        group = buildBubble(layout);
+        this.bubbleRoot.add(group);
+        this.bubbles.set(name, group);
       } else {
         group.position.copy(layout.center);
       }
+      if (previous) this.relayoutBubbleMembers(name, previous, layout);
     }
   }
 
@@ -268,10 +282,45 @@ export class AquariumScene {
     this.bubbleMembers.get(ns)?.delete(uid);
   }
 
+  private relayoutBubbleMembers(ns: string, previous: NamespaceLayout, next: NamespaceLayout) {
+    const members = this.bubbleMembers.get(ns);
+    if (!members || members.size === 0) return;
+
+    const centerDelta = next.center.clone().sub(previous.center);
+    const scale = previous.radius > 0 ? next.radius / previous.radius : 1;
+    const radiusChanged = Math.abs(scale - 1) > 0.01;
+    const centerChanged = centerDelta.lengthSq() > 0.0001;
+    if (!radiusChanged && !centerChanged) return;
+
+    for (const uid of members) {
+      const slot = this.slots.get(uid);
+      if (!slot) continue;
+      slot.pos.sub(previous.center).multiplyScalar(scale).add(next.center);
+      slot.vel.multiplyScalar(Math.min(1.15, Math.max(0.85, scale)));
+    }
+  }
+
   private allocIndex(): number {
     if (this.freeIndices.length > 0) return this.freeIndices.pop()!;
     if (this.nextIndex >= MAX_INSTANCES) return -1;
     return this.nextIndex++;
+  }
+
+  private pixelRatioForLoad(): number {
+    const dpr = window.devicePixelRatio || 1;
+    if (this.slots.size >= 2500 || this.fpsAvg < 28) return Math.min(1, dpr);
+    if (this.slots.size >= 1200 || this.fpsAvg < 42) return Math.min(1.25, dpr);
+    return Math.min(1.5, dpr);
+  }
+
+  private updateRendererQuality(now: number) {
+    if (now < this.nextQualityCheckAt) return;
+    this.nextQualityCheckAt = now + 1;
+    const next = this.pixelRatioForLoad();
+    if (Math.abs(next - this.pixelRatio) < 0.01) return;
+    this.pixelRatio = next;
+    this.renderer.setPixelRatio(next);
+    this.renderer.setSize(window.innerWidth, window.innerHeight, false);
   }
 
   private scaleFor(p: PodView): number {
@@ -456,24 +505,27 @@ export class AquariumScene {
     const tmpB = new THREE.Vector3();
     const force = new THREE.Vector3();
 
+    const useBoids = this.slots.size <= BOIDS_INSTANCE_LIMIT && this.fpsAvg >= BOIDS_MIN_FPS;
+
     for (const [nsName, members] of this.bubbleMembers) {
       const layout = this.layouts.get(nsName);
       if (!layout || members.size === 0) continue;
 
       const radius = layout.radius;
       const center = layout.center;
-      // Build grid
       const cell = Math.max(1.4, radius / 5);
-      const grid = new Map<number, InstanceSlot[]>();
+      const grid = useBoids ? new Map<number, InstanceSlot[]>() : undefined;
       const slots: InstanceSlot[] = [];
       for (const uid of members) {
         const s = this.slots.get(uid);
         if (!s || s.removingAt !== undefined) continue;
         slots.push(s);
-        const key = gridKey(s.pos, center, cell);
-        let bucket = grid.get(key);
-        if (!bucket) { bucket = []; grid.set(key, bucket); }
-        bucket.push(s);
+        if (grid) {
+          const key = gridKey(s.pos, center, cell);
+          let bucket = grid.get(key);
+          if (!bucket) { bucket = []; grid.set(key, bucket); }
+          bucket.push(s);
+        }
       }
       if (slots.length === 0) continue;
 
@@ -504,31 +556,33 @@ export class AquariumScene {
         let cohX = 0, cohY = 0, cohZ = 0, cohN = 0;
         let aliX = 0, aliY = 0, aliZ = 0, aliN = 0;
 
-        const baseKey = gridKey(s.pos, center, cell);
-        // Iterate 3x3x3 neighboring cells
-        for (let dz = -1; dz <= 1; dz++)
-        for (let dy = -1; dy <= 1; dy++)
-        for (let dx = -1; dx <= 1; dx++) {
-          const k = baseKey + dx + dy * 73856093 + dz * 19349663;
-          const bucket = grid.get(k);
-          if (!bucket) continue;
-          for (const o of bucket) {
-            if (o === s) continue;
-            tmpB.copy(s.pos).sub(o.pos);
-            const distSq = tmpB.lengthSq();
-            const minDist = (s.collisionRadius + o.collisionRadius) * 1.6;
-            if (distSq < minDist * minDist && distSq > 0.0001) {
-              // Separation: push away, stronger when closer
-              const inv = 1 / Math.sqrt(distSq);
-              const w = (minDist - distSq * inv) * inv * inv;
-              sepX += tmpB.x * w * SEPARATION;
-              sepY += tmpB.y * w * SEPARATION;
-              sepZ += tmpB.z * w * SEPARATION;
-            }
-            const visionSq = (cell * 1.5) * (cell * 1.5);
-            if (distSq < visionSq) {
-              cohX += o.pos.x; cohY += o.pos.y; cohZ += o.pos.z; cohN++;
-              aliX += o.vel.x; aliY += o.vel.y; aliZ += o.vel.z; aliN++;
+        if (grid) {
+          const baseKey = gridKey(s.pos, center, cell);
+          // Iterate 3x3x3 neighboring cells
+          for (let dz = -1; dz <= 1; dz++)
+          for (let dy = -1; dy <= 1; dy++)
+          for (let dx = -1; dx <= 1; dx++) {
+            const k = baseKey + dx + dy * 73856093 + dz * 19349663;
+            const bucket = grid.get(k);
+            if (!bucket) continue;
+            for (const o of bucket) {
+              if (o === s) continue;
+              tmpB.copy(s.pos).sub(o.pos);
+              const distSq = tmpB.lengthSq();
+              const minDist = (s.collisionRadius + o.collisionRadius) * 1.6;
+              if (distSq < minDist * minDist && distSq > 0.0001) {
+                // Separation: push away, stronger when closer
+                const inv = 1 / Math.sqrt(distSq);
+                const w = (minDist - distSq * inv) * inv * inv;
+                sepX += tmpB.x * w * SEPARATION;
+                sepY += tmpB.y * w * SEPARATION;
+                sepZ += tmpB.z * w * SEPARATION;
+              }
+              const visionSq = (cell * 1.5) * (cell * 1.5);
+              if (distSq < visionSq) {
+                cohX += o.pos.x; cohY += o.pos.y; cohZ += o.pos.z; cohN++;
+                aliX += o.vel.x; aliY += o.vel.y; aliZ += o.vel.z; aliN++;
+              }
             }
           }
         }
@@ -619,6 +673,7 @@ export class AquariumScene {
       this.simulate(dt);
 
       const now = performance.now() / 1000;
+      this.updateRendererQuality(now);
       const toFree: InstanceSlot[] = [];
 
       for (const slot of this.slots.values()) {
