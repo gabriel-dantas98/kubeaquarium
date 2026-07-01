@@ -141,6 +141,7 @@ func runServer(args []string) {
 			os.Exit(1)
 		}
 	}
+	contexts = k8s.WithCurrentContext(contexts, resolvedContext)
 
 	cc, err := k8s.ClientForContext(*kubeconfig, *contextName)
 	if err != nil {
