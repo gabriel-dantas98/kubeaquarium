@@ -26,7 +26,7 @@
     "dev": "remotion studio",
     "build": "remotion bundle",
     "capture": "node scripts/capture-demo.mjs",
-    "render": "remotion render src/index.ts KubeAquariumDemo ../docs/video/kubeaquarium-demo.mp4 --codec h264 --pixel-format yuv420p",
+    "render": "remotion render src/index.ts KubeAquariumDemo ../docs/video/kubeaquarium-demo.mp4 --codec h264 --pixel-format yuv420p && node scripts/optimize-demo.mjs",
     "still": "remotion still src/index.ts KubeAquariumDemo ../docs/video/kubeaquarium-demo-poster.png --frame 90",
     "upgrade": "remotion upgrade",
     "lint": "eslint src && tsc"

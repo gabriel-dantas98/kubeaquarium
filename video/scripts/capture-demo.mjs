@@ -13,8 +13,8 @@ await rm(output, { force: true });
 
 const browser = await chromium.launch({ headless: true });
 const context = await browser.newContext({
-  viewport: { width: 1280, height: 720 },
-  recordVideo: { dir: rawDir, size: { width: 1280, height: 720 } },
+  viewport: { width: 960, height: 540 },
+  recordVideo: { dir: rawDir, size: { width: 960, height: 540 } },
 });
 const page = await context.newPage();
 
