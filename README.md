@@ -150,6 +150,9 @@ cd video
 pnpm install
 DEMO_URL=http://127.0.0.1:7781 pnpm run capture
 pnpm run render
+
+# convert Blender assets to web-ready GLB
+scripts/convert-blend-to-glb.sh assets/source/missilesub1.blend web/public/models/missile-submarine.glb
 ```
 
 ## Layout
@@ -163,6 +166,8 @@ pnpm run render
 - `deploy/kind/` — local cluster + sample manifests
 - `docs/superpowers/specs/` — design docs
 - `scripts/install.sh` — one-line installer
+- `scripts/convert-blend-to-glb.sh` — headless Blender asset conversion
+- `assets/source/` — original third-party source assets and license notes
 
 ## License
 

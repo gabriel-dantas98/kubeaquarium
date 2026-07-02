@@ -1,11 +1,31 @@
 import * as THREE from 'three';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 
 export function buildSubmarineCockpit(): THREE.Group {
   const root = new THREE.Group();
   root.name = 'submarine-cockpit';
-  root.position.set(0, -1.08, -2.7);
-  root.scale.setScalar(0.46);
+  root.position.set(0, -0.94, -2.7);
+  root.scale.setScalar(0.62);
+  root.add(buildFallbackSubmarine());
 
+  const assetUrl = `${import.meta.env.BASE_URL}models/missile-submarine.glb`;
+  new GLTFLoader().load(assetUrl, (gltf) => {
+    root.clear();
+    const model = normalizeModel(gltf.scene, 2.35);
+    model.name = 'missile-submarine-model';
+    model.rotation.set(0, 0, -Math.PI / 2);
+    model.position.set(0, -0.02, -0.05);
+    tintModel(model);
+    root.add(model);
+  }, undefined, (err) => {
+    console.warn('[kubeaquarium] failed to load submarine model', err);
+  });
+
+  return root;
+}
+
+function buildFallbackSubmarine(): THREE.Group {
+  const root = new THREE.Group();
   const bodyMat = new THREE.MeshStandardMaterial({
     color: 0xfacc15,
     roughness: 0.55,
@@ -62,4 +82,37 @@ export function buildSubmarineCockpit(): THREE.Group {
   root.add(rightLight);
 
   return root;
+}
+
+function normalizeModel(model: THREE.Object3D, targetSize: number): THREE.Group {
+  const box = new THREE.Box3().setFromObject(model);
+  const center = box.getCenter(new THREE.Vector3());
+  const size = box.getSize(new THREE.Vector3());
+  const maxAxis = Math.max(size.x, size.y, size.z) || 1;
+  model.position.sub(center);
+
+  const holder = new THREE.Group();
+  holder.scale.setScalar(targetSize / maxAxis);
+  holder.add(model);
+  return holder;
+}
+
+function tintModel(root: THREE.Object3D) {
+  root.traverse((obj) => {
+    const mesh = obj as THREE.Mesh;
+    if (!mesh.isMesh) return;
+    mesh.castShadow = false;
+    mesh.receiveShadow = false;
+    if (!mesh.material) {
+      mesh.material = new THREE.MeshStandardMaterial({ color: 0xfacc15, roughness: 0.58, metalness: 0.12 });
+      return;
+    }
+    const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+    for (const mat of materials) {
+      const standard = mat as THREE.MeshStandardMaterial;
+      if ('color' in standard) standard.color.lerp(new THREE.Color(0xfacc15), 0.38);
+      if ('roughness' in standard) standard.roughness = Math.max(0.42, standard.roughness ?? 0.42);
+      if ('metalness' in standard) standard.metalness = Math.min(0.3, standard.metalness ?? 0.12);
+    }
+  });
 }
