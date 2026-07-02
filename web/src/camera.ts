@@ -42,6 +42,14 @@ export class HybridCamera {
   private keys = new Set<string>();
   private diveSpeed = 18;
 
+  // shake state (transient impulse; removed before each update so it never
+  // permanently displaces the camera)
+  private shakeAmp = 0;
+  private shakeTime = 0;
+  private readonly shakeDuration = 0.15;
+  private shakeOffset = new THREE.Vector3();
+  private shakeSeed = 0;
+
   // shared
   private el: HTMLElement;
 
@@ -108,7 +116,41 @@ export class HybridCamera {
     this.camera.lookAt(this.target);
   }
 
+  /**
+   * Brief camera impulse (missile impact, etc). Subtle by design: small
+   * amplitude, ~0.15s, eased out. The offset is removed at the start of the
+   * next update, so integrated modes (dive) never drift.
+   */
+  impulse(strength = 1) {
+    this.shakeAmp = Math.min(0.24, 0.13 * strength + this.shakeAmp * 0.4);
+    this.shakeTime = this.shakeDuration;
+    this.shakeSeed = Math.random() * 100;
+  }
+
   update(dt: number) {
+    // Remove last frame's shake offset before simulating camera motion.
+    this.camera.position.sub(this.shakeOffset);
+    this.shakeOffset.set(0, 0, 0);
+    this.updateMode(dt);
+    this.applyShake(dt);
+  }
+
+  private applyShake(dt: number) {
+    if (this.shakeTime <= 0) return;
+    this.shakeTime = Math.max(0, this.shakeTime - dt);
+    const t = this.shakeTime / this.shakeDuration; // 1 -> 0
+    const a = this.shakeAmp * t * t;               // eased out
+    const p = (this.shakeDuration - this.shakeTime) * 46 + this.shakeSeed;
+    this.shakeOffset.set(
+      Math.sin(p * 1.3) * a,
+      Math.cos(p * 1.7) * a * 0.7,
+      Math.sin(p * 0.9) * a * 0.5,
+    );
+    this.camera.position.add(this.shakeOffset);
+    if (this.shakeTime <= 0) this.shakeAmp = 0;
+  }
+
+  private updateMode(dt: number) {
     if (this.mode === 'focus') {
       this.focusT = Math.min(1, this.focusT + dt / this.focusDuration);
       const e = easeInOut(this.focusT);
