@@ -117,6 +117,7 @@ func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
 }
 
 // handlePodOps routes:
+//   DELETE /api/pod/{ns}/{name}
 //   GET /api/pod/{ns}/{name}/yaml
 //   GET /api/pod/{ns}/{name}/events
 //   GET /api/pod/{ns}/{name}/containers
@@ -125,6 +126,21 @@ func (s *Server) handlePodOps(w http.ResponseWriter, r *http.Request) {
 	// Trim prefix and split path
 	path := strings.TrimPrefix(r.URL.Path, "/api/pod/")
 	parts := strings.Split(path, "/")
+	if r.Method == http.MethodDelete {
+		if len(parts) != 2 {
+			http.Error(w, "expected DELETE /api/pod/{ns}/{name}", http.StatusBadRequest)
+			return
+		}
+		ns, name := parts[0], parts[1]
+		if err := k8s.DeletePod(r.Context(), s.cs, ns, name); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusAccepted)
+		json.NewEncoder(w).Encode(map[string]any{"deleted": true})
+		return
+	}
 	if len(parts) != 3 {
 		http.Error(w, "expected /api/pod/{ns}/{name}/{op}", http.StatusBadRequest)
 		return

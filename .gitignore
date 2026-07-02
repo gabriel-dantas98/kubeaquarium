@@ -1,4 +1,5 @@
 .superpowers/
 web/node_modules/
+site/
 /kubeaquarium
 *.log

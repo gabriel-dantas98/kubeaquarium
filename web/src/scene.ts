@@ -4,6 +4,7 @@ import type { PodView } from './types';
 import { buildWhaleGeometry, buildWhaleMaterial } from './whale';
 import { layoutNamespaces, buildBubble, placeInBubble, type NamespaceLayout } from './namespaces';
 import { HybridCamera } from './camera';
+import { buildSubmarineCockpit } from './submarine';
 import type { Filter } from './hud/search';
 import { ALL } from './hud/search';
 import type { LabelTarget } from './hud/labels';
@@ -11,6 +12,8 @@ import type { LabelTarget } from './hud/labels';
 const MAX_INSTANCES = 20000;
 const BOIDS_INSTANCE_LIMIT = 1200;
 const BOIDS_MIN_FPS = 24;
+const MAX_BUBBLES = 180;
+const MAX_PROJECTILES = 32;
 
 const COLORS = {
   running: new THREE.Color(0x2496ed),
@@ -40,6 +43,24 @@ interface InstanceSlot {
   wanderSeed: number;
   matched: boolean;       // current filter result
   baseColor: THREE.Color; // pre-dim color, so we can re-tint cheaply
+  hitFlashUntil?: number;
+}
+
+interface Particle {
+  pos: THREE.Vector3;
+  vel: THREE.Vector3;
+  age: number;
+  ttl: number;
+  scale: number;
+}
+
+interface Projectile {
+  pos: THREE.Vector3;
+  prev: THREE.Vector3;
+  vel: THREE.Vector3;
+  age: number;
+  ttl: number;
+  armedAt: number;
 }
 
 export class AquariumScene {
@@ -50,6 +71,9 @@ export class AquariumScene {
   private stats: Stats;
   private mat: THREE.ShaderMaterial;
   private mesh: THREE.InstancedMesh;
+  private bubbleMesh: THREE.InstancedMesh;
+  private projectileMesh: THREE.InstancedMesh;
+  private submarine: THREE.Group;
   private hybrid: HybridCamera;
 
   private slots = new Map<string, InstanceSlot>();
@@ -66,12 +90,25 @@ export class AquariumScene {
   private dummyPos = new THREE.Vector3();
   private dummyQuat = new THREE.Quaternion();
   private dummyScale = new THREE.Vector3();
+  private forward = new THREE.Vector3();
+  private right = new THREE.Vector3();
+  private up = new THREE.Vector3(0, 1, 0);
+  private prevCameraPos = new THREE.Vector3();
+  private cameraFrameDelta = new THREE.Vector3();
+  private submarineBasePos = new THREE.Vector3(0, -0.94, -2.7);
+  private submarineKick = 0;
   private raycaster = new THREE.Raycaster();
   private pointer = new THREE.Vector2();
+  private aimPoint = new THREE.Vector2(0, 0);
   private pixelRatio = 1;
   private nextQualityCheckAt = 0;
+  private particles: Particle[] = [];
+  private projectiles: Projectile[] = [];
+  private attackMode = false;
+  private nextBubbleAt = 0;
 
   onSelect?: (uid: string) => void;
+  onAttackHit?: (uid: string) => void;
   fpsAvg = 60;
   paused = false;
   focusedUid: string | null = null;
@@ -107,6 +144,12 @@ export class AquariumScene {
 
     this.camera = new THREE.PerspectiveCamera(58, window.innerWidth / window.innerHeight, 0.1, 600);
     this.camera.position.set(0, 8, 60);
+    this.prevCameraPos.copy(this.camera.position);
+    this.scene.add(this.camera);
+    this.submarine = buildSubmarineCockpit();
+    this.submarineBasePos.copy(this.submarine.position);
+    this.camera.add(this.submarine);
+    this.camera.add(new THREE.PointLight(0xfff4cf, 1.15, 8));
     this.hybrid = new HybridCamera(this.camera, canvas);
 
     const geo = buildWhaleGeometry();
@@ -118,12 +161,68 @@ export class AquariumScene {
     this.mesh.geometry.setAttribute('instanceColor', new THREE.InstancedBufferAttribute(colors, 3));
     this.scene.add(this.mesh);
 
+    this.bubbleMesh = new THREE.InstancedMesh(
+      new THREE.SphereGeometry(0.09, 8, 6),
+      new THREE.MeshBasicMaterial({ color: 0xbdefff, transparent: true, opacity: 0.48, depthWrite: false }),
+      MAX_BUBBLES,
+    );
+    this.bubbleMesh.count = 0;
+    this.scene.add(this.bubbleMesh);
+
+    this.projectileMesh = new THREE.InstancedMesh(
+      new THREE.SphereGeometry(0.18, 12, 8),
+      new THREE.MeshBasicMaterial({ color: 0xff5f6d }),
+      MAX_PROJECTILES,
+    );
+    this.projectileMesh.count = 0;
+    this.scene.add(this.projectileMesh);
+
     this.stats = new Stats();
     this.stats.dom.id = 'stats-container';
     document.body.appendChild(this.stats.dom);
 
     canvas.addEventListener('click', (e) => this.onCanvasClick(e));
     window.addEventListener('resize', () => this.onResize());
+  }
+
+  get isDiving(): boolean {
+    return this.hybrid.mode === 'dive';
+  }
+
+  get projectileCount(): number {
+    return this.projectiles.length;
+  }
+
+  getSubmarineDebug() {
+    return {
+      visible: this.submarine.visible,
+      position: {
+        x: Number(this.submarine.position.x.toFixed(3)),
+        y: Number(this.submarine.position.y.toFixed(3)),
+        z: Number(this.submarine.position.z.toFixed(3)),
+      },
+      rotation: {
+        x: Number(this.submarine.rotation.x.toFixed(3)),
+        y: Number(this.submarine.rotation.y.toFixed(3)),
+        z: Number(this.submarine.rotation.z.toFixed(3)),
+      },
+    };
+  }
+
+  setAttackMode(enabled: boolean) {
+    this.attackMode = enabled;
+  }
+
+  setAimClientPoint(clientX: number, clientY: number) {
+    const rect = this.canvas.getBoundingClientRect();
+    this.aimPoint.x = THREE.MathUtils.clamp(((clientX - rect.left) / rect.width) * 2 - 1, -0.96, 0.96);
+    this.aimPoint.y = THREE.MathUtils.clamp(-((clientY - rect.top) / rect.height) * 2 + 1, -0.92, 0.92);
+  }
+
+  fireAttack(): boolean {
+    if (!this.attackMode || this.hybrid.mode !== 'dive') return false;
+    this.fireProjectile();
+    return true;
   }
 
   private onResize() {
@@ -378,6 +477,11 @@ export class AquariumScene {
       g = Math.min(1, g * 1.2 + 0.18);
       b = Math.min(1, b * 1.2 + 0.22);
     }
+    if (slot.hitFlashUntil && performance.now() / 1000 < slot.hitFlashUntil) {
+      r = 1;
+      g = 0.9;
+      b = 0.25;
+    }
 
     const attr = this.mesh.geometry.getAttribute('instanceColor') as THREE.InstancedBufferAttribute;
     const arr = attr.array as Float32Array;
@@ -424,12 +528,14 @@ export class AquariumScene {
       if (this.projVec.z > 1 || this.projVec.z < -1) continue;
       const sx = (this.projVec.x * 0.5 + 0.5) * w;
       const sy = (-this.projVec.y * 0.5 + 0.5) * h;
+      if (!Number.isFinite(sx) || !Number.isFinite(sy) || !Number.isFinite(distSq)) continue;
       if (sx < -100 || sx > w + 100 || sy < -100 || sy > h + 100) continue;
 
       targets.push({
         uid: slot.uid,
         name: slot.name,
         namespace: slot.namespace,
+        ...statusForSlot(slot),
         screen: { x: sx, y: sy, depth: distSq, offsetY: slot.baseScale * 18 + 14 },
         matched: this.filterActive ? slot.matched : false,
         focused: slot.uid === this.focusedUid,
@@ -451,10 +557,17 @@ export class AquariumScene {
   }
 
   private onCanvasClick(e: MouseEvent) {
-    if (this.hybrid.mode === 'fly') return;
-    const rect = this.canvas.getBoundingClientRect();
-    this.pointer.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
-    this.pointer.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+    const divePick = this.hybrid.mode === 'dive';
+    if (divePick && this.attackMode) {
+      return;
+    }
+    if (divePick) {
+      this.pointer.copy(this.aimPoint);
+    } else {
+      const rect = this.canvas.getBoundingClientRect();
+      this.pointer.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+      this.pointer.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+    }
     this.raycaster.setFromCamera(this.pointer, this.camera);
 
     let bestUid: string | null = null;
@@ -462,7 +575,7 @@ export class AquariumScene {
     const ray = this.raycaster.ray;
     const tmp = new THREE.Vector3();
     for (const slot of this.slots.values()) {
-      const r = slot.baseScale * 1.4;
+      const r = slot.baseScale * (divePick ? 3.2 : 1.4);
       tmp.copy(slot.pos).sub(ray.origin);
       const proj = tmp.dot(ray.direction);
       if (proj < 0) continue;
@@ -472,10 +585,235 @@ export class AquariumScene {
         bestUid = slot.uid;
       }
     }
+    if (!bestUid && divePick) bestUid = this.closestToCrosshairUid(96);
     if (bestUid) {
       this.focusOnPod(bestUid);
       this.onSelect?.(bestUid);
     }
+  }
+
+  private closestToCrosshairUid(maxPixels: number): string | null {
+    let bestUid: string | null = null;
+    let bestScore = Infinity;
+    const cx = (this.aimPoint.x * 0.5 + 0.5) * window.innerWidth;
+    const cy = (-this.aimPoint.y * 0.5 + 0.5) * window.innerHeight;
+    for (const slot of this.slots.values()) {
+      if (slot.removingAt !== undefined) continue;
+      this.projVec.copy(slot.pos);
+      this.projVec.project(this.camera);
+      if (this.projVec.z > 1 || this.projVec.z < -1) continue;
+
+      const sx = (this.projVec.x * 0.5 + 0.5) * window.innerWidth;
+      const sy = (-this.projVec.y * 0.5 + 0.5) * window.innerHeight;
+      if (!Number.isFinite(sx) || !Number.isFinite(sy)) continue;
+      const dx = sx - cx;
+      const dy = sy - cy;
+      const screenDist = Math.hypot(dx, dy);
+      const allowed = Math.max(maxPixels, slot.baseScale * 34);
+      if (screenDist > allowed) continue;
+
+      const score = screenDist * screenDist + slot.pos.distanceToSquared(this.camera.position) * 0.015;
+      if (score < bestScore) {
+        bestScore = score;
+        bestUid = slot.uid;
+      }
+    }
+    return bestUid;
+  }
+
+  private fireProjectile() {
+    if (this.projectiles.length >= MAX_PROJECTILES) return;
+    this.raycaster.setFromCamera(this.aimPoint, this.camera);
+    this.forward.copy(this.raycaster.ray.direction).normalize();
+    const pos = this.camera.position.clone()
+      .addScaledVector(this.forward, 2.3)
+      .addScaledVector(this.up, -0.2);
+    const vel = this.forward.clone().multiplyScalar(78);
+    this.projectiles.push({ pos, prev: pos.clone(), vel, age: 0, ttl: 2.6, armedAt: 0.05 });
+    this.submarineKick = 1;
+    this.spawnImpactBubbles(pos, this.forward, 4);
+  }
+
+  private updateProjectiles(dt: number) {
+    let write = 0;
+    const quat = new THREE.Quaternion();
+    const baseForward = new THREE.Vector3(0, 0, 1);
+    for (const projectile of this.projectiles) {
+      projectile.age += dt;
+      if (projectile.age >= projectile.ttl) continue;
+      projectile.prev.copy(projectile.pos);
+      projectile.pos.addScaledVector(projectile.vel, dt);
+
+      const hit = projectile.age >= projectile.armedAt ? this.projectileHitUid(projectile) : null;
+      if (hit) {
+        this.spawnImpactBubbles(projectile.pos, projectile.vel.clone().normalize(), 18);
+        this.flashHit(hit);
+        this.onAttackHit?.(hit);
+        continue;
+      }
+
+      this.projectiles[write++] = projectile;
+      quat.setFromUnitVectors(baseForward, projectile.vel.clone().normalize());
+      this.dummyPos.copy(projectile.pos);
+      this.dummyScale.set(0.72, 0.72, 1.9);
+      this.dummyMatrix.compose(this.dummyPos, quat, this.dummyScale);
+      this.projectileMesh.setMatrixAt(write - 1, this.dummyMatrix);
+    }
+    this.projectiles.length = write;
+    this.projectileMesh.count = write;
+    this.projectileMesh.instanceMatrix.needsUpdate = true;
+  }
+
+  private projectileHitUid(projectile: Projectile): string | null {
+    let bestUid: string | null = null;
+    let bestDist = Infinity;
+    for (const slot of this.slots.values()) {
+      if (slot.removingAt !== undefined) continue;
+      const radius = slot.collisionRadius * 1.35 + 0.35;
+      const dist = distanceToSegmentSquared(slot.pos, projectile.prev, projectile.pos);
+      if (dist <= radius * radius && dist < bestDist) {
+        bestDist = dist;
+        bestUid = slot.uid;
+      }
+    }
+    return bestUid;
+  }
+
+  private flashHit(uid: string) {
+    const slot = this.slots.get(uid);
+    if (!slot) return;
+    slot.hitFlashUntil = performance.now() / 1000 + 0.45;
+    this.writeRenderColor(slot);
+    (this.mesh.geometry.getAttribute('instanceColor') as THREE.InstancedBufferAttribute).needsUpdate = true;
+  }
+
+  private updateSubmarine(dt: number) {
+    if (this.hybrid.mode !== 'dive') {
+      this.submarine.visible = false;
+      this.prevCameraPos.copy(this.camera.position);
+      this.updateParticles(dt);
+      return;
+    }
+
+    this.submarine.visible = true;
+    this.resolveSubmarineCollisions();
+    this.animateSubmarine(dt);
+    const now = performance.now() / 1000;
+    if (now >= this.nextBubbleAt) {
+      this.nextBubbleAt = now + 0.045;
+      this.updateDiveBasis();
+      const base = this.camera.position.clone()
+        .addScaledVector(this.forward, -1.45)
+        .addScaledVector(this.up, -0.45);
+      for (let i = 0; i < 2; i++) {
+        const jitter = this.right.clone().multiplyScalar((Math.random() - 0.5) * 0.55)
+          .addScaledVector(this.up, (Math.random() - 0.5) * 0.28);
+        this.addParticle(
+          base.clone().add(jitter),
+          this.forward.clone().multiplyScalar(-1.8 - Math.random() * 1.2).addScaledVector(this.up, 0.8 + Math.random() * 0.9),
+          1.1 + Math.random() * 0.7,
+          0.45 + Math.random() * 0.35,
+        );
+      }
+    }
+    this.updateParticles(dt);
+  }
+
+  private animateSubmarine(dt: number) {
+    const now = performance.now() / 1000;
+    const safeDt = Math.max(dt, 1 / 120);
+    this.cameraFrameDelta.copy(this.camera.position).sub(this.prevCameraPos).multiplyScalar(1 / safeDt);
+    this.prevCameraPos.copy(this.camera.position);
+    this.updateDiveBasis();
+
+    const forwardSpeed = THREE.MathUtils.clamp(this.cameraFrameDelta.dot(this.forward), -22, 22);
+    const lateralSpeed = THREE.MathUtils.clamp(this.cameraFrameDelta.dot(this.right), -22, 22);
+    const verticalSpeed = THREE.MathUtils.clamp(this.cameraFrameDelta.y, -18, 18);
+    const aimX = this.aimPoint.x;
+    const aimY = this.aimPoint.y;
+    const bob = Math.sin(now * 3.1) * 0.035 + Math.sin(now * 5.7) * 0.014;
+    const side = THREE.MathUtils.clamp(aimX * 0.22 + lateralSpeed * 0.012, -0.34, 0.34);
+    const lift = THREE.MathUtils.clamp(-aimY * 0.08 + verticalSpeed * 0.006, -0.18, 0.18);
+    const kick = this.submarineKick;
+
+    this.dummyPos.copy(this.submarineBasePos);
+    this.dummyPos.x += side;
+    this.dummyPos.y += bob + lift;
+    this.dummyPos.z += kick * 0.18;
+    this.submarine.position.lerp(this.dummyPos, Math.min(1, dt * 7));
+
+    const targetPitch = THREE.MathUtils.clamp(aimY * 0.14 - forwardSpeed * 0.004 + verticalSpeed * 0.012, -0.28, 0.28);
+    const targetYaw = THREE.MathUtils.clamp(-aimX * 0.18 + lateralSpeed * 0.006, -0.24, 0.24);
+    const targetRoll = THREE.MathUtils.clamp(-aimX * 0.24 - lateralSpeed * 0.018 + Math.sin(now * 2.4) * 0.035, -0.34, 0.34);
+    this.submarine.rotation.x = THREE.MathUtils.lerp(this.submarine.rotation.x, targetPitch + kick * 0.05, Math.min(1, dt * 8));
+    this.submarine.rotation.y = THREE.MathUtils.lerp(this.submarine.rotation.y, targetYaw, Math.min(1, dt * 8));
+    this.submarine.rotation.z = THREE.MathUtils.lerp(this.submarine.rotation.z, targetRoll + kick * 0.12, Math.min(1, dt * 8));
+    this.submarineKick = Math.max(0, this.submarineKick - dt * 5.5);
+  }
+
+  private updateDiveBasis() {
+    this.camera.getWorldDirection(this.forward).normalize();
+    this.right.crossVectors(this.forward, this.up);
+    if (this.right.lengthSq() < 0.0001) this.right.set(1, 0, 0);
+    else this.right.normalize();
+  }
+
+  private resolveSubmarineCollisions() {
+    const subRadius = 1.1;
+    const pos = this.camera.position;
+    for (const slot of this.slots.values()) {
+      if (slot.removingAt !== undefined) continue;
+      this.dummyPos.copy(pos).sub(slot.pos);
+      const minDist = subRadius + slot.collisionRadius * 1.1;
+      const dist = this.dummyPos.length();
+      if (dist > 0.001 && dist < minDist) {
+        pos.addScaledVector(this.dummyPos.normalize(), minDist - dist);
+      }
+    }
+    const worldLimit = 205;
+    const fromCenter = pos.length();
+    if (fromCenter > worldLimit) pos.multiplyScalar(worldLimit / fromCenter);
+  }
+
+  private spawnImpactBubbles(origin: THREE.Vector3, normal: THREE.Vector3, count: number) {
+    for (let i = 0; i < count; i++) {
+      const spread = new THREE.Vector3(
+        (Math.random() - 0.5) * 3,
+        Math.random() * 2.4,
+        (Math.random() - 0.5) * 3,
+      );
+      this.addParticle(
+        origin.clone(),
+        normal.clone().multiplyScalar(-1.4 - Math.random() * 2.4).add(spread),
+        0.7 + Math.random() * 0.8,
+        0.35 + Math.random() * 0.55,
+      );
+    }
+  }
+
+  private addParticle(pos: THREE.Vector3, vel: THREE.Vector3, ttl: number, scale: number) {
+    if (this.particles.length >= MAX_BUBBLES) this.particles.shift();
+    this.particles.push({ pos, vel, age: 0, ttl, scale });
+  }
+
+  private updateParticles(dt: number) {
+    let write = 0;
+    for (const p of this.particles) {
+      p.age += dt;
+      if (p.age >= p.ttl) continue;
+      p.vel.y += dt * 0.28;
+      p.pos.addScaledVector(p.vel, dt);
+      const life = 1 - p.age / p.ttl;
+      this.particles[write++] = p;
+      this.dummyPos.copy(p.pos);
+      this.dummyQuat.identity();
+      this.dummyScale.setScalar(p.scale * (0.35 + life * 0.85));
+      this.dummyMatrix.compose(this.dummyPos, this.dummyQuat, this.dummyScale);
+      this.bubbleMesh.setMatrixAt(write - 1, this.dummyMatrix);
+    }
+    this.particles.length = write;
+    this.bubbleMesh.count = write;
+    this.bubbleMesh.instanceMatrix.needsUpdate = true;
   }
 
   // ----------------------- Simulation -----------------------
@@ -670,13 +1008,22 @@ export class AquariumScene {
       this.hybrid.update(dt);
       this.mat.uniforms.uTime.value += dt;
 
+      this.updateSubmarine(dt);
       this.simulate(dt);
+      this.updateProjectiles(dt);
 
       const now = performance.now() / 1000;
       this.updateRendererQuality(now);
       const toFree: InstanceSlot[] = [];
+      let colorDirty = false;
 
       for (const slot of this.slots.values()) {
+        if (slot.hitFlashUntil) {
+          const expired = now >= slot.hitFlashUntil;
+          this.writeRenderColor(slot);
+          colorDirty = true;
+          if (expired) slot.hitFlashUntil = undefined;
+        }
         if (slot.removingAt !== undefined) {
           const t = (now - slot.removingAt) / 1.5;
           if (t >= 1) { toFree.push(slot); continue; }
@@ -703,6 +1050,7 @@ export class AquariumScene {
         }
       }
       this.mesh.instanceMatrix.needsUpdate = true;
+      if (colorDirty) (this.mesh.geometry.getAttribute('instanceColor') as THREE.InstancedBufferAttribute).needsUpdate = true;
 
       if (toFree.length) for (const s of toFree) this.freeSlot(s);
 
@@ -739,6 +1087,37 @@ function gridKey(pos: THREE.Vector3, center: THREE.Vector3, cell: number): numbe
   const z = Math.floor((pos.z - center.z) / cell);
   // Spatial hash; arithmetic chosen so that adjacency offsets are simple sums.
   return x + y * 73856093 + z * 19349663;
+}
+
+function statusForSlot(slot: InstanceSlot): Pick<LabelTarget, 'status' | 'statusClass'> {
+  if (slot.reason === 'CrashLoopBackOff') return { status: 'CrashLooping', statusClass: 'err' };
+  if (slot.reason === 'ImagePullBackOff' || slot.reason === 'ErrImagePull') return { status: 'Image Pull', statusClass: 'err' };
+  if (slot.reason === 'Error') return { status: 'Error', statusClass: 'err' };
+  if (slot.phase === 'Pending') return { status: 'Pending', statusClass: 'warn' };
+  if (slot.phase === 'Running' && slot.ready) return { status: 'Healthy', statusClass: 'ok' };
+  if (slot.phase === 'Running') return { status: 'Not Ready', statusClass: 'warn' };
+  if (slot.phase === 'Succeeded') return { status: 'Completed', statusClass: 'info' };
+  if (slot.phase === 'Failed') return { status: 'Failed', statusClass: 'err' };
+  return { status: slot.reason || slot.phase || 'Unknown', statusClass: 'info' };
+}
+
+function distanceToSegmentSquared(point: THREE.Vector3, a: THREE.Vector3, b: THREE.Vector3): number {
+  const abx = b.x - a.x;
+  const aby = b.y - a.y;
+  const abz = b.z - a.z;
+  const apx = point.x - a.x;
+  const apy = point.y - a.y;
+  const apz = point.z - a.z;
+  const lenSq = abx * abx + aby * aby + abz * abz;
+  if (lenSq <= 0.000001) return point.distanceToSquared(a);
+  const t = THREE.MathUtils.clamp((apx * abx + apy * aby + apz * abz) / lenSq, 0, 1);
+  const x = a.x + abx * t;
+  const y = a.y + aby * t;
+  const z = a.z + abz * t;
+  const dx = point.x - x;
+  const dy = point.y - y;
+  const dz = point.z - z;
+  return dx * dx + dy * dy + dz * dz;
 }
 
 function lerpAngle(a: number, b: number, t: number): number {

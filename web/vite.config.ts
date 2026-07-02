@@ -1,9 +1,13 @@
 import { defineConfig } from 'vite';
 import { resolve } from 'node:path';
 
+const outDir = process.env.KUBEAQUARIUM_WEB_OUT_DIR ?? '../internal/webassets/dist';
+const base = process.env.KUBEAQUARIUM_WEB_BASE ?? '/';
+
 export default defineConfig({
+  base,
   build: {
-    outDir: resolve(__dirname, '../internal/webassets/dist'),
+    outDir: resolve(__dirname, outDir),
     emptyOutDir: true,
     target: 'es2022',
   },

@@ -11,11 +11,14 @@
 
 const NEAREST_N = 14;
 const MATCH_CAP = 60;
+const LABEL_GAP = 4;
 
 export interface LabelTarget {
   uid: string;
   name: string;
   namespace: string;
+  status: string;
+  statusClass: 'ok' | 'warn' | 'err' | 'info';
   screen: { x: number; y: number; depth: number; offsetY: number };
   matched: boolean;
   focused: boolean;
@@ -38,46 +41,92 @@ export class LabelLayer {
     let cap = NEAREST_N;
     if (targets.some(t => t.matched)) cap = Math.min(MATCH_CAP, sorted.filter(t => t.matched).length + 4);
 
-    const visible = sorted.slice(0, cap);
+    const candidates = sorted.slice(0, cap);
 
-    // Recycle / size pool
-    while (this.pool.length + this.inUse.length < visible.length) {
+    const labels = [...this.root.querySelectorAll<HTMLDivElement>('.pod-label')];
+    while (labels.length < candidates.length) {
       const div = document.createElement('div');
       div.className = 'pod-label';
       this.root.appendChild(div);
-      this.pool.push(div);
+      labels.push(div);
     }
 
-    // Return inUse to pool
-    for (const d of this.inUse) {
-      d.classList.remove('visible', 'focused', 'match');
-      this.pool.push(d);
-    }
+    for (const d of labels) resetLabel(d);
     this.inUse.length = 0;
+    const available = labels;
+    this.pool = [];
 
-    // Apply
-    for (const t of visible) {
-      const div = this.pool.pop();
+    const placed: Rect[] = [];
+    for (const t of candidates) {
+      const div = available.pop();
       if (!div) break;
-      this.inUse.push(div);
       const left = t.screen.x;
       const top = t.screen.y - t.screen.offsetY;
       div.style.left = left + 'px';
       div.style.top = top + 'px';
-      div.innerHTML = `<span class="ns">${escapeHtml(t.namespace)}</span>${escapeHtml(t.name)}`;
-      div.classList.add('visible');
+      div.innerHTML = `<span class="ns">${escapeHtml(t.namespace)}</span><span class="status">${escapeHtml(t.status)}</span>`;
+      div.title = `${t.namespace}/${t.name}`;
+      div.classList.remove('visible', 'focused', 'match', 'ok', 'warn', 'err', 'info');
+      div.classList.add(t.statusClass);
       if (t.focused) div.classList.add('focused');
       if (t.matched) div.classList.add('match');
+
+      const rect = measureLabel(div, left, top);
+      if (!t.focused && placed.some(p => intersects(p, rect))) {
+        resetLabel(div);
+        this.pool.push(div);
+        continue;
+      }
+
+      placed.push(rect);
+      this.inUse.push(div);
+      div.classList.add('visible');
+    }
+
+    for (const div of available) {
+      resetLabel(div);
+      this.pool.push(div);
     }
   }
 
   hideAll() {
     for (const d of this.inUse) {
-      d.classList.remove('visible', 'focused', 'match');
+      resetLabel(d);
       this.pool.push(d);
     }
     this.inUse.length = 0;
+    this.pool = [...new Set(this.pool)];
+    for (const d of this.pool) resetLabel(d);
   }
+}
+
+interface Rect {
+  left: number;
+  right: number;
+  top: number;
+  bottom: number;
+}
+
+function measureLabel(div: HTMLDivElement, left: number, top: number): Rect {
+  const width = div.offsetWidth;
+  const height = div.offsetHeight;
+  return {
+    left: left - width / 2 - LABEL_GAP,
+    right: left + width / 2 + LABEL_GAP,
+    top: top - height - LABEL_GAP,
+    bottom: top + LABEL_GAP,
+  };
+}
+
+function intersects(a: Rect, b: Rect): boolean {
+  return a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top;
+}
+
+function resetLabel(div: HTMLDivElement) {
+  div.classList.remove('visible', 'focused', 'match');
+  div.style.left = '';
+  div.style.top = '';
+  div.title = '';
 }
 
 function escapeHtml(s: string): string {

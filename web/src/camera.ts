@@ -6,12 +6,12 @@ import * as THREE from 'three';
  * Modes:
  *   - 'orbit': third-person, drag to rotate around target, scroll to zoom.
  *   - 'focus': cinematic dolly to a specific point (when a whale is clicked).
- *   - 'fly':   first-person, pointer-lock + WASD + mouse look.
+ *   - 'dive':   submarine dive mode, WASD movement with a HUD reticle.
  *
- * Press F to toggle fly mode; ESC to exit fly or focus.
+ * Press F to toggle dive mode; ESC returns to orbit.
  */
 
-type Mode = 'orbit' | 'focus' | 'fly';
+type Mode = 'orbit' | 'focus' | 'dive';
 
 const KEYS = { fwd: ['KeyW','ArrowUp'], back: ['KeyS','ArrowDown'], left: ['KeyA','ArrowLeft'], right: ['KeyD','ArrowRight'], up: ['Space'], down: ['ShiftLeft','ShiftRight'] };
 
@@ -35,12 +35,12 @@ export class HybridCamera {
   private focusDuration = 0.9;
   private onFocusDone?: () => void;
 
-  // fly state
+  // dive state
   private yaw = 0;
   private pitch = 0;
   private velocity = new THREE.Vector3();
   private keys = new Set<string>();
-  private flySpeed = 18;
+  private diveSpeed = 18;
 
   // shared
   private el: HTMLElement;
@@ -72,11 +72,10 @@ export class HybridCamera {
     this.onFocusDone = onDone;
   }
 
-  enterFly() {
-    if (this.mode === 'fly') return;
-    this.mode = 'fly';
-    document.body.classList.add('fly');
-    this.el.requestPointerLock?.();
+  enterDive() {
+    if (this.mode === 'dive') return;
+    this.mode = 'dive';
+    document.body.classList.add('dive');
     // Initialize yaw/pitch from current camera orientation
     const dir = new THREE.Vector3();
     this.camera.getWorldDirection(dir);
@@ -84,16 +83,15 @@ export class HybridCamera {
     this.pitch = Math.asin(THREE.MathUtils.clamp(dir.y, -1, 1));
   }
 
-  exitFly() {
-    document.body.classList.remove('fly');
-    if (document.pointerLockElement) document.exitPointerLock();
+  exitDive() {
+    document.body.classList.remove('dive');
     this.target.copy(this.camera.position).add(this.cameraForward().multiplyScalar(20));
     this.spherical.setFromVector3(this.camera.position.clone().sub(this.target));
     this.mode = 'orbit';
   }
 
   resetToOrbit() {
-    if (this.mode === 'fly') { this.exitFly(); return; }
+    if (this.mode === 'dive') { this.exitDive(); return; }
     this.mode = 'orbit';
     this.applyOrbit();
   }
@@ -129,7 +127,7 @@ export class HybridCamera {
       return;
     }
 
-    if (this.mode === 'fly') {
+    if (this.mode === 'dive') {
       const fwd = new THREE.Vector3(Math.sin(this.yaw) * Math.cos(this.pitch), Math.sin(this.pitch), Math.cos(this.yaw) * Math.cos(this.pitch));
       const right = new THREE.Vector3().crossVectors(fwd, new THREE.Vector3(0, 1, 0)).normalize();
       const up = new THREE.Vector3(0, 1, 0);
@@ -144,7 +142,7 @@ export class HybridCamera {
       if (accel.lengthSq() > 0) accel.normalize();
 
       // Smooth velocity
-      const targetVel = accel.multiplyScalar(this.flySpeed);
+      const targetVel = accel.multiplyScalar(this.diveSpeed);
       this.velocity.lerp(targetVel, Math.min(1, dt * 6));
       this.camera.position.addScaledVector(this.velocity, dt);
 
@@ -169,13 +167,6 @@ export class HybridCamera {
     });
     window.addEventListener('mouseup', () => { this.dragging = false; });
     window.addEventListener('mousemove', (e) => {
-      if (this.mode === 'fly' && document.pointerLockElement) {
-        const sens = 0.0024;
-        this.yaw -= e.movementX * sens;
-        this.pitch -= e.movementY * sens;
-        this.pitch = THREE.MathUtils.clamp(this.pitch, -Math.PI / 2 + 0.01, Math.PI / 2 - 0.01);
-        return;
-      }
       if (!this.dragging || this.mode !== 'orbit') return;
       const dx = e.clientX - this.lastX;
       const dy = e.clientY - this.lastY;
@@ -193,17 +184,14 @@ export class HybridCamera {
 
     window.addEventListener('keydown', (e) => {
       this.keys.add(e.code);
-      if (e.code === 'KeyF' && this.mode !== 'fly') this.enterFly();
+      if (e.code === 'KeyF') {
+        if (this.mode === 'dive') this.exitDive();
+        else this.enterDive();
+      }
       else if (e.code === 'Escape') this.resetToOrbit();
     });
     window.addEventListener('keyup', (e) => this.keys.delete(e.code));
 
-    document.addEventListener('pointerlockchange', () => {
-      if (!document.pointerLockElement && this.mode === 'fly') {
-        // user released pointer lock — drop back to orbit
-        this.exitFly();
-      }
-    });
   }
 }
 
