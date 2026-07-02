@@ -6,7 +6,7 @@ import * as THREE from 'three';
  * Modes:
  *   - 'orbit': third-person, drag to rotate around target, scroll to zoom.
  *   - 'focus': cinematic dolly to a specific point (when a whale is clicked).
- *   - 'dive':   submarine dive mode, pointer-lock + WASD + mouse look.
+ *   - 'dive':   submarine dive mode, WASD movement with a HUD reticle.
  *
  * Press F to toggle dive mode; ESC returns to orbit.
  */
@@ -76,7 +76,6 @@ export class HybridCamera {
     if (this.mode === 'dive') return;
     this.mode = 'dive';
     document.body.classList.add('dive');
-    this.el.requestPointerLock?.();
     // Initialize yaw/pitch from current camera orientation
     const dir = new THREE.Vector3();
     this.camera.getWorldDirection(dir);
@@ -86,7 +85,6 @@ export class HybridCamera {
 
   exitDive() {
     document.body.classList.remove('dive');
-    if (document.pointerLockElement) document.exitPointerLock();
     this.target.copy(this.camera.position).add(this.cameraForward().multiplyScalar(20));
     this.spherical.setFromVector3(this.camera.position.clone().sub(this.target));
     this.mode = 'orbit';
@@ -169,13 +167,6 @@ export class HybridCamera {
     });
     window.addEventListener('mouseup', () => { this.dragging = false; });
     window.addEventListener('mousemove', (e) => {
-      if (this.mode === 'dive' && document.pointerLockElement) {
-        const sens = 0.0024;
-        this.yaw -= e.movementX * sens;
-        this.pitch -= e.movementY * sens;
-        this.pitch = THREE.MathUtils.clamp(this.pitch, -Math.PI / 2 + 0.01, Math.PI / 2 - 0.01);
-        return;
-      }
       if (!this.dragging || this.mode !== 'orbit') return;
       const dx = e.clientX - this.lastX;
       const dy = e.clientY - this.lastY;
@@ -201,12 +192,6 @@ export class HybridCamera {
     });
     window.addEventListener('keyup', (e) => this.keys.delete(e.code));
 
-    document.addEventListener('pointerlockchange', () => {
-      if (!document.pointerLockElement && this.mode === 'dive') {
-        // user released pointer lock — drop back to orbit
-        this.exitDive();
-      }
-    });
   }
 }
 

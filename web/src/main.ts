@@ -42,6 +42,7 @@ let namespaceCounts = new Map<string, number>();
 let pendingEvents: StreamEvent[] = [];
 let flushScheduled = false;
 let attackMode = false;
+let lastAttackHitUid: string | null = null;
 
 function applyFilter(filter: Filter, raw: string) {
   activeFilter = filter;
@@ -89,6 +90,11 @@ function isEditing(target: EventTarget | null): boolean {
   return !!el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable);
 }
 
+function isInteractive(target: EventTarget | null): boolean {
+  const el = target as HTMLElement | null;
+  return !!el?.closest('button,input,select,textarea,a,[role="button"],[role="listbox"],.detail,.radar,.search');
+}
+
 function setAttackMode(enabled: boolean) {
   attackMode = enabled;
   scene.setAttackMode(enabled);
@@ -130,6 +136,7 @@ scene.onSelect = (uid) => {
   detail.show(p);
 };
 scene.onAttackHit = (uid) => {
+  lastAttackHitUid = uid;
   void deletePodFromAttackHit(uid);
 };
 attackToggle.addEventListener('click', () => setAttackMode(!attackMode));
@@ -286,11 +293,48 @@ const cross = document.createElement('div');
 cross.className = 'crosshair';
 document.body.appendChild(cross);
 
+function moveReticle(clientX: number, clientY: number) {
+  const x = Math.max(24, Math.min(window.innerWidth - 24, clientX));
+  const y = Math.max(52, Math.min(window.innerHeight - 56, clientY));
+  document.body.style.setProperty('--aim-x', `${x}px`);
+  document.body.style.setProperty('--aim-y', `${y}px`);
+  scene.setAimClientPoint(x, y);
+}
+
+moveReticle(window.innerWidth / 2, window.innerHeight / 2);
+window.addEventListener('pointermove', (e) => {
+  if (!scene.isDiving) return;
+  moveReticle(e.clientX, e.clientY);
+});
+window.addEventListener('pointerdown', (e) => {
+  if (e.button !== 0 || !attackMode || !scene.isDiving || isInteractive(e.target)) return;
+  moveReticle(e.clientX, e.clientY);
+  e.preventDefault();
+  e.stopPropagation();
+  scene.fireAttack();
+}, true);
+
 (window as any).__kubeaquarium = {
   get fps() { return Math.round(scene.fpsAvg); },
   get pods() { return store.pods.size; },
   get matched() { return scene.countMatched(); },
+  get attackMode() { return attackMode; },
+  get diveMode() { return scene.isDiving; },
+  get projectiles() { return scene.projectileCount; },
+  get lastAttackHitUid() { return lastAttackHitUid; },
   pause() { scene.paused = true; },
   resume() { scene.paused = false; },
 };
+(window as any).render_game_to_text = () => JSON.stringify({
+  mode: scene.isDiving ? 'dive' : 'orbit',
+  attackMode,
+  pods: store.pods.size,
+  fps: Math.round(scene.fpsAvg),
+  projectiles: scene.projectileCount,
+  lastAttackHitUid,
+  aim: {
+    x: getComputedStyle(document.body).getPropertyValue('--aim-x').trim() || '50vw',
+    y: getComputedStyle(document.body).getPropertyValue('--aim-y').trim() || '50vh',
+  },
+});
 console.log('[kubeaquarium] ready');

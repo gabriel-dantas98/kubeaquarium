@@ -43,6 +43,7 @@ interface InstanceSlot {
   wanderSeed: number;
   matched: boolean;       // current filter result
   baseColor: THREE.Color; // pre-dim color, so we can re-tint cheaply
+  hitFlashUntil?: number;
 }
 
 interface Particle {
@@ -55,6 +56,7 @@ interface Particle {
 
 interface Projectile {
   pos: THREE.Vector3;
+  prev: THREE.Vector3;
   vel: THREE.Vector3;
   age: number;
   ttl: number;
@@ -92,6 +94,7 @@ export class AquariumScene {
   private up = new THREE.Vector3(0, 1, 0);
   private raycaster = new THREE.Raycaster();
   private pointer = new THREE.Vector2();
+  private aimPoint = new THREE.Vector2(0, 0);
   private pixelRatio = 1;
   private nextQualityCheckAt = 0;
   private particles: Particle[] = [];
@@ -174,8 +177,28 @@ export class AquariumScene {
     window.addEventListener('resize', () => this.onResize());
   }
 
+  get isDiving(): boolean {
+    return this.hybrid.mode === 'dive';
+  }
+
+  get projectileCount(): number {
+    return this.projectiles.length;
+  }
+
   setAttackMode(enabled: boolean) {
     this.attackMode = enabled;
+  }
+
+  setAimClientPoint(clientX: number, clientY: number) {
+    const rect = this.canvas.getBoundingClientRect();
+    this.aimPoint.x = THREE.MathUtils.clamp(((clientX - rect.left) / rect.width) * 2 - 1, -0.96, 0.96);
+    this.aimPoint.y = THREE.MathUtils.clamp(-((clientY - rect.top) / rect.height) * 2 + 1, -0.92, 0.92);
+  }
+
+  fireAttack(): boolean {
+    if (!this.attackMode || this.hybrid.mode !== 'dive') return false;
+    this.fireProjectile();
+    return true;
   }
 
   private onResize() {
@@ -430,6 +453,11 @@ export class AquariumScene {
       g = Math.min(1, g * 1.2 + 0.18);
       b = Math.min(1, b * 1.2 + 0.22);
     }
+    if (slot.hitFlashUntil && performance.now() / 1000 < slot.hitFlashUntil) {
+      r = 1;
+      g = 0.9;
+      b = 0.25;
+    }
 
     const attr = this.mesh.geometry.getAttribute('instanceColor') as THREE.InstancedBufferAttribute;
     const arr = attr.array as Float32Array;
@@ -506,11 +534,10 @@ export class AquariumScene {
   private onCanvasClick(e: MouseEvent) {
     const divePick = this.hybrid.mode === 'dive';
     if (divePick && this.attackMode) {
-      this.fireProjectile();
       return;
     }
     if (divePick) {
-      this.pointer.set(0, 0);
+      this.pointer.copy(this.aimPoint);
     } else {
       const rect = this.canvas.getBoundingClientRect();
       this.pointer.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
@@ -543,8 +570,8 @@ export class AquariumScene {
   private closestToCrosshairUid(maxPixels: number): string | null {
     let bestUid: string | null = null;
     let bestScore = Infinity;
-    const cx = window.innerWidth / 2;
-    const cy = window.innerHeight / 2;
+    const cx = (this.aimPoint.x * 0.5 + 0.5) * window.innerWidth;
+    const cy = (-this.aimPoint.y * 0.5 + 0.5) * window.innerHeight;
     for (const slot of this.slots.values()) {
       if (slot.removingAt !== undefined) continue;
       this.projVec.copy(slot.pos);
@@ -571,12 +598,13 @@ export class AquariumScene {
 
   private fireProjectile() {
     if (this.projectiles.length >= MAX_PROJECTILES) return;
-    this.updateDiveBasis();
+    this.raycaster.setFromCamera(this.aimPoint, this.camera);
+    this.forward.copy(this.raycaster.ray.direction).normalize();
     const pos = this.camera.position.clone()
       .addScaledVector(this.forward, 2.3)
       .addScaledVector(this.up, -0.2);
     const vel = this.forward.clone().multiplyScalar(78);
-    this.projectiles.push({ pos, vel, age: 0, ttl: 2.6, armedAt: 0.05 });
+    this.projectiles.push({ pos, prev: pos.clone(), vel, age: 0, ttl: 2.6, armedAt: 0.05 });
     this.spawnImpactBubbles(pos, this.forward, 4);
   }
 
@@ -587,11 +615,13 @@ export class AquariumScene {
     for (const projectile of this.projectiles) {
       projectile.age += dt;
       if (projectile.age >= projectile.ttl) continue;
+      projectile.prev.copy(projectile.pos);
       projectile.pos.addScaledVector(projectile.vel, dt);
 
       const hit = projectile.age >= projectile.armedAt ? this.projectileHitUid(projectile) : null;
       if (hit) {
         this.spawnImpactBubbles(projectile.pos, projectile.vel.clone().normalize(), 18);
+        this.flashHit(hit);
         this.onAttackHit?.(hit);
         continue;
       }
@@ -614,13 +644,21 @@ export class AquariumScene {
     for (const slot of this.slots.values()) {
       if (slot.removingAt !== undefined) continue;
       const radius = slot.collisionRadius * 1.35 + 0.35;
-      const dist = projectile.pos.distanceToSquared(slot.pos);
+      const dist = distanceToSegmentSquared(slot.pos, projectile.prev, projectile.pos);
       if (dist <= radius * radius && dist < bestDist) {
         bestDist = dist;
         bestUid = slot.uid;
       }
     }
     return bestUid;
+  }
+
+  private flashHit(uid: string) {
+    const slot = this.slots.get(uid);
+    if (!slot) return;
+    slot.hitFlashUntil = performance.now() / 1000 + 0.45;
+    this.writeRenderColor(slot);
+    (this.mesh.geometry.getAttribute('instanceColor') as THREE.InstancedBufferAttribute).needsUpdate = true;
   }
 
   private updateSubmarine(dt: number) {
@@ -915,8 +953,15 @@ export class AquariumScene {
       const now = performance.now() / 1000;
       this.updateRendererQuality(now);
       const toFree: InstanceSlot[] = [];
+      let colorDirty = false;
 
       for (const slot of this.slots.values()) {
+        if (slot.hitFlashUntil) {
+          const expired = now >= slot.hitFlashUntil;
+          this.writeRenderColor(slot);
+          colorDirty = true;
+          if (expired) slot.hitFlashUntil = undefined;
+        }
         if (slot.removingAt !== undefined) {
           const t = (now - slot.removingAt) / 1.5;
           if (t >= 1) { toFree.push(slot); continue; }
@@ -943,6 +988,7 @@ export class AquariumScene {
         }
       }
       this.mesh.instanceMatrix.needsUpdate = true;
+      if (colorDirty) (this.mesh.geometry.getAttribute('instanceColor') as THREE.InstancedBufferAttribute).needsUpdate = true;
 
       if (toFree.length) for (const s of toFree) this.freeSlot(s);
 
@@ -979,6 +1025,25 @@ function gridKey(pos: THREE.Vector3, center: THREE.Vector3, cell: number): numbe
   const z = Math.floor((pos.z - center.z) / cell);
   // Spatial hash; arithmetic chosen so that adjacency offsets are simple sums.
   return x + y * 73856093 + z * 19349663;
+}
+
+function distanceToSegmentSquared(point: THREE.Vector3, a: THREE.Vector3, b: THREE.Vector3): number {
+  const abx = b.x - a.x;
+  const aby = b.y - a.y;
+  const abz = b.z - a.z;
+  const apx = point.x - a.x;
+  const apy = point.y - a.y;
+  const apz = point.z - a.z;
+  const lenSq = abx * abx + aby * aby + abz * abz;
+  if (lenSq <= 0.000001) return point.distanceToSquared(a);
+  const t = THREE.MathUtils.clamp((apx * abx + apy * aby + apz * abz) / lenSq, 0, 1);
+  const x = a.x + abx * t;
+  const y = a.y + aby * t;
+  const z = a.z + abz * t;
+  const dx = point.x - x;
+  const dy = point.y - y;
+  const dz = point.z - z;
+  return dx * dx + dy * dy + dz * dz;
 }
 
 function lerpAngle(a: number, b: number, t: number): number {
