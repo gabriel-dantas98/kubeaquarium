@@ -1,6 +1,6 @@
 import type { StreamEvent, PodView } from './types';
 
-type Handler = (e: StreamEvent) => void;
+export type Handler = (e: StreamEvent) => void;
 
 export class Stream {
   private ws?: WebSocket;

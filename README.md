@@ -6,6 +6,8 @@ A live 3D aquarium for your Kubernetes cluster. Each pod is a tiny Docker whale,
 
 ## Demo
 
+[Open the interactive static demo](https://gabriel-dantas98.github.io/kubeaquarium/). It runs entirely in the browser with generated Kubernetes-like data, so it is safe to try the radar, dive mode, details panel, and attack controls without a cluster.
+
 [![kubeaquarium demo video](docs/video/kubeaquarium-demo-poster.png)](docs/video/kubeaquarium-demo.mp4)
 
 [Watch the MP4 demo](docs/video/kubeaquarium-demo.mp4). It was captured from kubeaquarium running against a real Kubernetes cluster with `--namespace monitoring`, then composed with Remotion.

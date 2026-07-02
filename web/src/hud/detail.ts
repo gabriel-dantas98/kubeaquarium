@@ -1,4 +1,5 @@
 import type { PodView } from '../types';
+import { demoContainers, demoEvents, demoLogs, demoYaml, isDemoMode } from '../demo';
 
 type Tab = 'overview' | 'events' | 'yaml' | 'logs';
 
@@ -125,8 +126,9 @@ export class DetailPanel {
     const host = document.getElementById('d-events')!;
     host.innerHTML = `<div class="empty">loading…</div>`;
     try {
-      const r = await fetch(`/api/pod/${p.namespace}/${p.name}/events`);
-      const events: PodEvent[] = await r.json();
+      const events: PodEvent[] = isDemoMode
+        ? demoEvents(p)
+        : await (await fetch(`/api/pod/${p.namespace}/${p.name}/events`)).json();
       this.loaded.events = true;
       if (!events.length) {
         host.innerHTML = `<div class="empty">no events</div>`;
@@ -151,9 +153,9 @@ export class DetailPanel {
     const host = document.getElementById('d-yaml')!;
     host.textContent = 'loading…';
     try {
-      const r = await fetch(`/api/pod/${p.namespace}/${p.name}/yaml`);
-      const text = await r.text();
-      host.textContent = text;
+      host.textContent = isDemoMode
+        ? demoYaml(p)
+        : await (await fetch(`/api/pod/${p.namespace}/${p.name}/yaml`)).text();
       this.loaded.yaml = true;
     } catch (err) {
       host.textContent = `error: ${err}`;
@@ -164,8 +166,9 @@ export class DetailPanel {
     const sel = document.getElementById('d-container') as HTMLSelectElement;
     sel.innerHTML = '<option value="">loading…</option>';
     try {
-      const r = await fetch(`/api/pod/${p.namespace}/${p.name}/containers`);
-      const containers: string[] = await r.json();
+      const containers: string[] = isDemoMode
+        ? demoContainers()
+        : await (await fetch(`/api/pod/${p.namespace}/${p.name}/containers`)).json();
       sel.innerHTML = containers.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
       this.loaded.logs = true;
       this.startLogs(p, sel.value);
@@ -214,6 +217,10 @@ export class DetailPanel {
     this.logsAbort = ctrl;
     const url = `/api/pod/${encodeURIComponent(p.namespace)}/${encodeURIComponent(p.name)}/logs?container=${encodeURIComponent(container)}&tail=200&follow=${follow ? 1 : 0}`;
     try {
+      if (isDemoMode) {
+        this.appendLogChunk(demoLogs(p, container));
+        return;
+      }
       const r = await fetch(url, { signal: ctrl.signal });
       if (!r.body) {
         term.textContent = '(no body)';

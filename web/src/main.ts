@@ -4,6 +4,7 @@ import { DetailPanel } from './hud/detail';
 import { SearchHUD, ALL, type Filter } from './hud/search';
 import { RadarHUD, type RadarItem } from './hud/radar';
 import { LabelLayer } from './hud/labels';
+import { DemoStream, demoContexts, isDemoMode } from './demo';
 import type { PodView, StreamEvent } from './types';
 
 const canvas = document.getElementById('scene') as HTMLCanvasElement;
@@ -109,6 +110,12 @@ async function deletePodFromAttackHit(uid: string) {
   if (!attackMode) return;
   const pod = store.pods.get(uid);
   if (!pod) return;
+  if (isDemoMode) {
+    store.apply({ type: 'deleted', uid });
+    scene.removePod(uid);
+    document.getElementById('pod-count')!.textContent = `${store.pods.size} pods`;
+    return;
+  }
   const url = `/api/pod/${encodeURIComponent(pod.namespace)}/${encodeURIComponent(pod.name)}`;
   const res = await fetch(url, { method: 'DELETE' });
   if (!res.ok) {
@@ -118,7 +125,7 @@ async function deletePodFromAttackHit(uid: string) {
   scene.removePod(uid);
 }
 
-const stream = new Stream((ev) => {
+const stream = new (isDemoMode ? DemoStream : Stream)((ev) => {
   pendingEvents.push(ev);
   scheduleFlush();
 });
@@ -172,7 +179,11 @@ function labelLoop() {
 }
 requestAnimationFrame(labelLoop);
 
-fetch('/api/contexts').then(r => r.json()).then((list: any[]) => {
+const contextsPromise = isDemoMode
+  ? Promise.resolve(demoContexts())
+  : fetch('/api/contexts').then(r => r.json());
+
+contextsPromise.then((list: any[]) => {
   const cur = list.find(c => c.current);
   document.getElementById('ctx-name')!.textContent = cur ? cur.name : (list[0]?.name ?? '—');
 });

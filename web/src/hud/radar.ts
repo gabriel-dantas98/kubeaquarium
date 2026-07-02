@@ -180,7 +180,8 @@ export class RadarHUD {
       const index = Number(row.dataset.index);
       row.addEventListener('mouseenter', () => {
         this.activeIndex = index;
-        this.render();
+        this.updateActiveRows();
+        this.renderScope();
       });
       row.addEventListener('click', () => {
         this.activeIndex = index;
@@ -188,6 +189,14 @@ export class RadarHUD {
       });
     });
     this.results.querySelector('.radar-row.active')?.scrollIntoView({ block: 'nearest' });
+  }
+
+  private updateActiveRows() {
+    this.results.querySelectorAll<HTMLButtonElement>('.radar-row').forEach(row => {
+      const active = Number(row.dataset.index) === this.activeIndex;
+      row.classList.toggle('active', active);
+      row.setAttribute('aria-selected', String(active));
+    });
   }
 
   private renderScope() {
