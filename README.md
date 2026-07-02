@@ -72,7 +72,7 @@ Namespace filtering is applied at informer creation. For multiple namespaces, ku
 | Resource radar            | <kbd>Cmd/Ctrl</kbd> + <kbd>K</kbd> |
 | Orbit                     | drag |
 | Zoom                      | scroll |
-| Select & freeze a whale   | click |
+| Select & freeze a whale   | click (center ray in fly mode) |
 | Fly mode (1st person)     | <kbd>F</kbd> (then WASD + mouse, Space/Shift up/down) |
 | Back to orbit / close panel | <kbd>Esc</kbd> |
 
@@ -109,6 +109,7 @@ Multiple terms = AND. Press <kbd>Enter</kbd> to dolly to the closest match.
 - **Events** — last 200 events from the cluster, warnings highlighted
 - **YAML** — pod spec (managedFields stripped)
 - **Logs** — streaming via HTTP chunked, container picker, follow toggle, clear button
+- Use the expand button in the panel header when logs or YAML need more horizontal space.
 
 ## Performance
 

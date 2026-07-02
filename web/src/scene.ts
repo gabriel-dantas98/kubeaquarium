@@ -424,6 +424,7 @@ export class AquariumScene {
       if (this.projVec.z > 1 || this.projVec.z < -1) continue;
       const sx = (this.projVec.x * 0.5 + 0.5) * w;
       const sy = (-this.projVec.y * 0.5 + 0.5) * h;
+      if (!Number.isFinite(sx) || !Number.isFinite(sy) || !Number.isFinite(distSq)) continue;
       if (sx < -100 || sx > w + 100 || sy < -100 || sy > h + 100) continue;
 
       targets.push({
@@ -451,10 +452,14 @@ export class AquariumScene {
   }
 
   private onCanvasClick(e: MouseEvent) {
-    if (this.hybrid.mode === 'fly') return;
-    const rect = this.canvas.getBoundingClientRect();
-    this.pointer.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
-    this.pointer.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+    const flyPick = this.hybrid.mode === 'fly';
+    if (flyPick) {
+      this.pointer.set(0, 0);
+    } else {
+      const rect = this.canvas.getBoundingClientRect();
+      this.pointer.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+      this.pointer.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+    }
     this.raycaster.setFromCamera(this.pointer, this.camera);
 
     let bestUid: string | null = null;
@@ -462,7 +467,7 @@ export class AquariumScene {
     const ray = this.raycaster.ray;
     const tmp = new THREE.Vector3();
     for (const slot of this.slots.values()) {
-      const r = slot.baseScale * 1.4;
+      const r = slot.baseScale * (flyPick ? 3.2 : 1.4);
       tmp.copy(slot.pos).sub(ray.origin);
       const proj = tmp.dot(ray.direction);
       if (proj < 0) continue;
@@ -472,10 +477,40 @@ export class AquariumScene {
         bestUid = slot.uid;
       }
     }
+    if (!bestUid && flyPick) bestUid = this.closestToCrosshairUid(96);
     if (bestUid) {
       this.focusOnPod(bestUid);
       this.onSelect?.(bestUid);
     }
+  }
+
+  private closestToCrosshairUid(maxPixels: number): string | null {
+    let bestUid: string | null = null;
+    let bestScore = Infinity;
+    const cx = window.innerWidth / 2;
+    const cy = window.innerHeight / 2;
+    for (const slot of this.slots.values()) {
+      if (slot.removingAt !== undefined) continue;
+      this.projVec.copy(slot.pos);
+      this.projVec.project(this.camera);
+      if (this.projVec.z > 1 || this.projVec.z < -1) continue;
+
+      const sx = (this.projVec.x * 0.5 + 0.5) * window.innerWidth;
+      const sy = (-this.projVec.y * 0.5 + 0.5) * window.innerHeight;
+      if (!Number.isFinite(sx) || !Number.isFinite(sy)) continue;
+      const dx = sx - cx;
+      const dy = sy - cy;
+      const screenDist = Math.hypot(dx, dy);
+      const allowed = Math.max(maxPixels, slot.baseScale * 34);
+      if (screenDist > allowed) continue;
+
+      const score = screenDist * screenDist + slot.pos.distanceToSquared(this.camera.position) * 0.015;
+      if (score < bestScore) {
+        bestScore = score;
+        bestUid = slot.uid;
+      }
+    }
+    return bestUid;
   }
 
   // ----------------------- Simulation -----------------------

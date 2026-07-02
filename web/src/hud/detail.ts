@@ -17,18 +17,22 @@ interface PodEvent {
  */
 export class DetailPanel {
   private root = document.getElementById('detail') as HTMLElement;
+  private expandButton = this.root.querySelector('[data-expand]') as HTMLButtonElement;
   private currentUid?: string;
   private currentPod?: PodView;
   private activeTab: Tab = 'overview';
   private logsAbort?: AbortController;
   private logsBuf = '';
   private autoscroll = true;
+  private expanded = false;
   private loaded: Record<Tab, boolean> = { overview: true, events: false, yaml: false, logs: false };
 
   constructor() {
     this.bindTabs();
     this.bindLogsControls();
     this.root.querySelector('[data-close]')?.addEventListener('click', () => this.hide());
+    this.expandButton.addEventListener('click', () => this.setExpanded(!this.expanded));
+    this.setExpanded(false);
   }
 
   show(p: PodView) {
@@ -59,6 +63,14 @@ export class DetailPanel {
   }
 
   isOpenFor(uid: string) { return this.currentUid === uid; }
+
+  private setExpanded(expanded: boolean) {
+    this.expanded = expanded;
+    this.root.classList.toggle('expanded', expanded);
+    this.expandButton.textContent = expanded ? '↙' : '⛶';
+    this.expandButton.title = expanded ? 'Collapse detail panel' : 'Expand detail panel';
+    this.expandButton.setAttribute('aria-label', this.expandButton.title);
+  }
 
   private bindTabs() {
     this.root.querySelectorAll<HTMLButtonElement>('.tab').forEach(btn => {
