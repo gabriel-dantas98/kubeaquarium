@@ -1,6 +1,13 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 
+// Docker-blue palette shared with the rest of the aquarium.
+const HULL_BLUE = 0x1d63ed;
+const HULL_DEEP = 0x123f8f;
+const ACCENT_LIGHT = 0x5b9bff;
+const TRIM_DARK = 0x0b1f3f;
+const GLOW_CYAN = 0x8fe8ff;
+
 export function buildSubmarineCockpit(): THREE.Group {
   const root = new THREE.Group();
   root.name = 'submarine-cockpit';
@@ -13,7 +20,9 @@ export function buildSubmarineCockpit(): THREE.Group {
     root.clear();
     const model = normalizeModel(gltf.scene, 2.35);
     model.name = 'missile-submarine-model';
-    model.rotation.set(0, 0, -Math.PI / 2);
+    // The GLB's hull runs along Z with the bow at -Z and the tail rudder at
+    // +Z, which already matches the camera's forward axis (-Z). Keep it level.
+    model.rotation.set(0, 0, 0);
     model.position.set(0, -0.02, -0.05);
     tintModel(model);
     root.add(model);
@@ -24,62 +33,107 @@ export function buildSubmarineCockpit(): THREE.Group {
   return root;
 }
 
+// Low-poly navy submarine, nose pointing -Z (camera forward), level.
 function buildFallbackSubmarine(): THREE.Group {
   const root = new THREE.Group();
-  const bodyMat = new THREE.MeshStandardMaterial({
-    color: 0xfacc15,
-    roughness: 0.55,
-    metalness: 0.18,
+  root.name = 'fallback-submarine';
+
+  const hullMat = new THREE.MeshStandardMaterial({
+    color: HULL_DEEP,
+    roughness: 0.48,
+    metalness: 0.22,
+  });
+  const accentMat = new THREE.MeshStandardMaterial({
+    color: HULL_BLUE,
+    roughness: 0.42,
+    metalness: 0.25,
+  });
+  const finMat = new THREE.MeshStandardMaterial({
+    color: ACCENT_LIGHT,
+    roughness: 0.45,
+    metalness: 0.2,
   });
   const trimMat = new THREE.MeshStandardMaterial({
-    color: 0x0f172a,
-    roughness: 0.45,
-    metalness: 0.35,
+    color: TRIM_DARK,
+    roughness: 0.5,
+    metalness: 0.3,
   });
-  const glassMat = new THREE.MeshStandardMaterial({
-    color: 0x6ec3f4,
-    emissive: 0x123a52,
-    transparent: true,
-    opacity: 0.62,
-    roughness: 0.12,
-    metalness: 0.05,
+  const glowMat = new THREE.MeshStandardMaterial({
+    color: GLOW_CYAN,
+    emissive: 0x4fc3e8,
+    emissiveIntensity: 1.4,
+    roughness: 0.2,
+    metalness: 0,
   });
 
-  const hull = new THREE.Mesh(new THREE.CapsuleGeometry(0.34, 1.18, 8, 18), bodyMat);
-  hull.rotation.z = Math.PI / 2;
-  hull.scale.set(1.28, 0.82, 0.82);
+  // Main hull: elongated capsule along Z, slightly flattened.
+  const hull = new THREE.Mesh(new THREE.CapsuleGeometry(0.3, 1.55, 10, 20), hullMat);
+  hull.rotation.x = Math.PI / 2; // capsule axis Y -> Z
+  hull.scale.set(1, 0.88, 1);
   root.add(hull);
 
-  const nose = new THREE.Mesh(new THREE.SphereGeometry(0.31, 18, 10), glassMat);
-  nose.position.z = -0.66;
-  nose.scale.set(0.9, 0.72, 0.72);
-  root.add(nose);
+  // Deck strip along the top for a two-tone hull.
+  const deck = new THREE.Mesh(new THREE.CapsuleGeometry(0.22, 1.3, 8, 16), accentMat);
+  deck.rotation.x = Math.PI / 2;
+  deck.position.y = 0.12;
+  deck.scale.set(1, 0.55, 1);
+  root.add(deck);
 
-  const tower = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.16, 0.36, 12), bodyMat);
-  tower.position.set(0, 0.32, 0.08);
-  tower.rotation.x = Math.PI / 2;
-  root.add(tower);
+  // Sail (conning tower): streamlined teardrop, forward of midship.
+  const sail = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.14, 0.38, 16), accentMat);
+  sail.position.set(0, 0.42, -0.28);
+  sail.scale.set(1, 1, 2.1);
+  root.add(sail);
 
-  const fin = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.5, 0.24), trimMat);
-  fin.position.set(0, 0.08, 0.68);
-  root.add(fin);
+  const sailCap = new THREE.Mesh(new THREE.SphereGeometry(0.1, 12, 8), accentMat);
+  sailCap.position.set(0, 0.61, -0.28);
+  sailCap.scale.set(1, 0.45, 2.1);
+  root.add(sailCap);
 
-  const leftRail = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.08, 1.08), trimMat);
-  leftRail.position.set(-0.42, -0.03, 0.04);
-  root.add(leftRail);
+  // Sail dive planes.
+  const sailPlanes = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.035, 0.18), finMat);
+  sailPlanes.position.set(0, 0.46, -0.3);
+  root.add(sailPlanes);
 
-  const rightRail = leftRail.clone();
-  rightRail.position.x = 0.42;
-  root.add(rightRail);
+  // Stern fins: horizontal + vertical cross.
+  const finH = new THREE.Mesh(new THREE.BoxGeometry(0.78, 0.045, 0.26), finMat);
+  finH.position.set(0, 0, 0.92);
+  root.add(finH);
 
-  const lightMat = new THREE.MeshBasicMaterial({ color: 0x9ae6ff });
-  const leftLight = new THREE.Mesh(new THREE.SphereGeometry(0.035, 8, 6), lightMat);
-  leftLight.position.set(-0.18, 0.03, -0.83);
-  root.add(leftLight);
+  const finV = new THREE.Mesh(new THREE.BoxGeometry(0.045, 0.68, 0.26), finMat);
+  finV.position.set(0, 0, 0.92);
+  root.add(finV);
 
-  const rightLight = leftLight.clone();
-  rightLight.position.x = 0.18;
-  root.add(rightLight);
+  // Tail cone + propeller hub.
+  const tail = new THREE.Mesh(new THREE.ConeGeometry(0.12, 0.3, 12), trimMat);
+  tail.rotation.x = -Math.PI / 2; // point +Z (aft)
+  tail.position.set(0, 0, 1.12);
+  root.add(tail);
+
+  // Glowing bow viewport.
+  const viewport = new THREE.Mesh(new THREE.SphereGeometry(0.085, 12, 8), glowMat);
+  viewport.position.set(0, 0.04, -1.02);
+  viewport.scale.set(1, 0.8, 0.6);
+  root.add(viewport);
+
+  // Small porthole dots along each flank.
+  const portholeGeo = new THREE.SphereGeometry(0.028, 8, 6);
+  for (const side of [-1, 1]) {
+    for (let i = 0; i < 3; i++) {
+      const porthole = new THREE.Mesh(portholeGeo, glowMat);
+      porthole.position.set(side * 0.285, 0.05, -0.55 + i * 0.42);
+      root.add(porthole);
+    }
+  }
+
+  // Navigation lights on the bow.
+  const lightGeo = new THREE.SphereGeometry(0.032, 8, 6);
+  const navLightMat = new THREE.MeshBasicMaterial({ color: GLOW_CYAN });
+  for (const side of [-1, 1]) {
+    const navLight = new THREE.Mesh(lightGeo, navLightMat);
+    navLight.position.set(side * 0.16, -0.06, -0.98);
+    root.add(navLight);
+  }
 
   return root;
 }
@@ -97,6 +151,8 @@ function normalizeModel(model: THREE.Object3D, targetSize: number): THREE.Group 
   return holder;
 }
 
+// Shift the GLB's flat dark-teal material toward the aquarium's Docker-blue
+// palette so the sub matches the whales and reads well against the dark scene.
 function tintModel(root: THREE.Object3D) {
   root.traverse((obj) => {
     const mesh = obj as THREE.Mesh;
@@ -104,15 +160,19 @@ function tintModel(root: THREE.Object3D) {
     mesh.castShadow = false;
     mesh.receiveShadow = false;
     if (!mesh.material) {
-      mesh.material = new THREE.MeshStandardMaterial({ color: 0xfacc15, roughness: 0.58, metalness: 0.12 });
+      mesh.material = new THREE.MeshStandardMaterial({ color: HULL_BLUE, roughness: 0.5, metalness: 0.2 });
       return;
     }
     const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
     for (const mat of materials) {
       const standard = mat as THREE.MeshStandardMaterial;
-      if ('color' in standard) standard.color.lerp(new THREE.Color(0xfacc15), 0.38);
-      if ('roughness' in standard) standard.roughness = Math.max(0.42, standard.roughness ?? 0.42);
-      if ('metalness' in standard) standard.metalness = Math.min(0.3, standard.metalness ?? 0.12);
+      if ('color' in standard) standard.color.lerp(new THREE.Color(HULL_BLUE), 0.55);
+      if ('roughness' in standard) standard.roughness = Math.max(0.45, standard.roughness ?? 0.5);
+      if ('metalness' in standard) standard.metalness = Math.min(0.28, Math.max(0.15, standard.metalness ?? 0.15));
+      if ('emissive' in standard && standard.emissive) {
+        standard.emissive.set(0x0a2a5c);
+        standard.emissiveIntensity = 0.35;
+      }
     }
   });
 }
