@@ -106,23 +106,50 @@ function setAttackMode(enabled: boolean) {
   attackToggle.title = enabled ? 'Disarm attack mode' : 'Arm attack mode';
 }
 
+const killFeed = document.getElementById('kill-feed') as HTMLDivElement;
+const KILL_FEED_MAX = 5;
+const KILL_FEED_TTL_MS = 4000;
+
+function pushKillFeed(namespace: string, name: string) {
+  const entry = document.createElement('div');
+  entry.className = 'kill-entry';
+  const icon = document.createElement('span');
+  icon.textContent = '🚀';
+  const target = document.createElement('span');
+  target.className = 'kill-target';
+  target.textContent = `${namespace}/${name}`;
+  const verb = document.createElement('span');
+  verb.className = 'kill-verb';
+  verb.textContent = 'eliminated';
+  entry.append(icon, target, verb);
+  killFeed.prepend(entry);
+  while (killFeed.children.length > KILL_FEED_MAX) killFeed.lastElementChild!.remove();
+  // CSS transitions can freeze under heavy WebGL load, so the fade-out is
+  // cosmetic only — removal is guaranteed by the timer.
+  window.setTimeout(() => entry.classList.add('leaving'), KILL_FEED_TTL_MS - 500);
+  window.setTimeout(() => entry.remove(), KILL_FEED_TTL_MS);
+}
+
 async function deletePodFromAttackHit(uid: string) {
   if (!attackMode) return;
   const pod = store.pods.get(uid);
   if (!pod) return;
+  const { namespace, name } = pod;
   if (isDemoMode) {
     store.apply({ type: 'deleted', uid });
     scene.removePod(uid);
     document.getElementById('pod-count')!.textContent = `${store.pods.size} pods`;
+    pushKillFeed(namespace, name);
     return;
   }
-  const url = `/api/pod/${encodeURIComponent(pod.namespace)}/${encodeURIComponent(pod.name)}`;
+  const url = `/api/pod/${encodeURIComponent(namespace)}/${encodeURIComponent(name)}`;
   const res = await fetch(url, { method: 'DELETE' });
   if (!res.ok) {
-    console.warn('[kubeaquarium] missile delete failed', pod.namespace, pod.name, await res.text());
+    console.warn('[kubeaquarium] missile delete failed', namespace, name, await res.text());
     return;
   }
   scene.removePod(uid);
+  pushKillFeed(namespace, name);
 }
 
 const stream = new (isDemoMode ? DemoStream : Stream)((ev) => {
@@ -292,8 +319,12 @@ function updateEmptyState() {
   const msg = document.getElementById('empty-msg')!;
   if (store.pods.size > 0) {
     empty.classList.add('hidden');
+    // CSS opacity transitions can freeze under heavy WebGL load, leaving the
+    // overlay half-visible; display:none is immune to transition throttling.
+    empty.style.display = 'none';
     return;
   }
+  empty.style.display = '';
   empty.classList.remove('hidden');
   msg.textContent = connected
     ? 'No pods to show in this context. Once workloads are created they will swim in.'

@@ -61,6 +61,10 @@ interface Projectile {
   age: number;
   ttl: number;
   armedAt: number;
+  /** Aimed impact point (updated each frame while the target pod is alive). */
+  target: THREE.Vector3;
+  targetUid: string | null;
+  speed: number;
 }
 
 export class AquariumScene {
@@ -423,10 +427,12 @@ export class AquariumScene {
   }
 
   private scaleFor(p: PodView): number {
+    // Exaggerated log curve so resource differences read at a glance:
+    // 10m/8Mi ≈ 0.6, 100m/128Mi ≈ 1.5, 500m/1Gi ≈ 2.5, 2c/4Gi ≈ 3.3.
     const total = Math.max(1, p.cpuMillis + p.memMib);
-    const v = Math.log10(total + 10) - 1;
-    const s = Math.pow(Math.max(0.1, v), 0.85);
-    return THREE.MathUtils.clamp(0.4 + s * 0.55, 0.5, 2.4);
+    const v = Math.max(0.1, Math.log10(total + 10) - 1);
+    const s = Math.pow(v, 1.35);
+    return THREE.MathUtils.clamp(0.35 + s * 0.75, 0.5, 3.6);
   }
 
   private colorFor(p: PodView): THREE.Color {
@@ -624,14 +630,53 @@ export class AquariumScene {
   private fireProjectile() {
     if (this.projectiles.length >= MAX_PROJECTILES) return;
     this.raycaster.setFromCamera(this.aimPoint, this.camera);
-    this.forward.copy(this.raycaster.ray.direction).normalize();
-    const pos = this.camera.position.clone()
-      .addScaledVector(this.forward, 2.3)
-      .addScaledVector(this.up, -0.2);
-    const vel = this.forward.clone().multiplyScalar(78);
-    this.projectiles.push({ pos, prev: pos.clone(), vel, age: 0, ttl: 2.6, armedAt: 0.05 });
+
+    // Resolve the aimed target: pod under the crosshair, else a far point along the ray.
+    const targetUid = this.aimedTargetUid();
+    const target = new THREE.Vector3();
+    const targetSlot = targetUid ? this.slots.get(targetUid) : undefined;
+    if (targetSlot) target.copy(targetSlot.pos);
+    else target.copy(this.raycaster.ray.origin).addScaledVector(this.raycaster.ray.direction, 60);
+
+    // Launch from the hull nose (submarine is parented to the camera, so
+    // resolve its world position, then push slightly forward and below).
+    this.updateDiveBasis();
+    const pos = this.submarine.getWorldPosition(new THREE.Vector3())
+      .addScaledVector(this.forward, 1.35)
+      .addScaledVector(this.up, -0.12);
+
+    // Fast but readable: ~0.25s close-in, up to ~0.5s at long range.
+    const dist = Math.max(0.001, pos.distanceTo(target));
+    const travelTime = THREE.MathUtils.clamp(dist / 90, 0.25, 0.5);
+    const speed = dist / travelTime;
+    const vel = target.clone().sub(pos).normalize().multiplyScalar(speed);
+    this.projectiles.push({
+      pos, prev: pos.clone(), vel, age: 0, ttl: travelTime + 1.0, armedAt: 0.06,
+      target, targetUid, speed,
+    });
     this.submarineKick = 1;
-    this.spawnImpactBubbles(pos, this.forward, 4);
+    this.spawnImpactBubbles(pos, vel.clone().normalize(), 4);
+  }
+
+  /** Pod under the crosshair, using the same tolerant pick as dive-mode clicks. */
+  private aimedTargetUid(): string | null {
+    const ray = this.raycaster.ray;
+    const tmp = new THREE.Vector3();
+    let bestUid: string | null = null;
+    let bestT = Infinity;
+    for (const slot of this.slots.values()) {
+      if (slot.removingAt !== undefined) continue;
+      const r = slot.baseScale * 3.2;
+      tmp.copy(slot.pos).sub(ray.origin);
+      const proj = tmp.dot(ray.direction);
+      if (proj < 0) continue;
+      const distSq = tmp.lengthSq() - proj * proj;
+      if (distSq <= r * r && proj < bestT) {
+        bestT = proj;
+        bestUid = slot.uid;
+      }
+    }
+    return bestUid ?? this.closestToCrosshairUid(96);
   }
 
   private updateProjectiles(dt: number) {
@@ -641,6 +686,16 @@ export class AquariumScene {
     for (const projectile of this.projectiles) {
       projectile.age += dt;
       if (projectile.age >= projectile.ttl) continue;
+
+      // Home in on the aimed pod so moving whales still get hit.
+      if (projectile.targetUid) {
+        const t = this.slots.get(projectile.targetUid);
+        if (t && t.removingAt === undefined) projectile.target.copy(t.pos);
+      }
+      projectile.vel.copy(projectile.target).sub(projectile.pos);
+      const remaining = projectile.vel.length();
+      if (remaining > 0.001) projectile.vel.multiplyScalar(projectile.speed / remaining);
+
       projectile.prev.copy(projectile.pos);
       projectile.pos.addScaledVector(projectile.vel, dt);
 
@@ -651,6 +706,18 @@ export class AquariumScene {
         this.onAttackHit?.(hit);
         continue;
       }
+      // Reached an empty aim point: fizzle out with a small puff.
+      if (remaining <= projectile.speed * dt) {
+        this.spawnImpactBubbles(projectile.pos, projectile.vel.clone().normalize(), 6);
+        continue;
+      }
+      // Cheap glowing trail: shed a short-lived bubble each frame.
+      this.addParticle(
+        projectile.pos.clone(),
+        projectile.vel.clone().multiplyScalar(-0.03),
+        0.3 + Math.random() * 0.15,
+        0.26,
+      );
 
       this.projectiles[write++] = projectile;
       quat.setFromUnitVectors(baseForward, projectile.vel.clone().normalize());

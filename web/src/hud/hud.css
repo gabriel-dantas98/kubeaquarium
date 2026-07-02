@@ -301,6 +301,48 @@ body.attack .crosshair {
 .attack-copy b { color: #f87171; }
 .attack-copy span { color: rgba(254,205,211,0.82); }
 
+/* ------- Kill feed ------- */
+
+.kill-feed {
+  position: fixed; top: 52px; right: 16px;
+  display: flex; flex-direction: column; gap: 6px;
+  align-items: flex-end;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+#hud > .kill-feed { pointer-events: none; }
+.kill-entry {
+  display: flex; gap: 8px; align-items: center;
+  padding: 5px 10px;
+  background: rgba(31, 7, 13, 0.82);
+  border: 1px solid rgba(248,113,113,0.55);
+  border-radius: 6px;
+  color: #fecdd3;
+  font-size: 12px;
+  box-shadow: 0 0 14px rgba(248,113,113,0.2);
+  /* Slide-in is cosmetic only and never touches opacity: CSS animation
+     timelines can freeze at frame 0 under heavy WebGL load, so frame 0
+     must already be fully readable. */
+  animation: killIn .16s ease-out;
+}
+.kill-entry .kill-target {
+  color: #fff1f2; font-weight: 700;
+  max-width: 320px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.kill-entry .kill-verb {
+  color: #fb923c; font-size: 10px; font-weight: 700;
+  letter-spacing: .08em; text-transform: uppercase;
+}
+/* Exit is cosmetic only — removal is driven by setTimeout in main.ts because
+   CSS transition timelines can freeze under heavy WebGL load. */
+.kill-entry.leaving {
+  opacity: 0; transform: translateX(14px);
+  transition: opacity .5s, transform .5s;
+}
+@keyframes killIn {
+  from { transform: translateX(14px); }
+  to { transform: none; }
+}
+
 /* ------- Search overlay (k9s-style) ------- */
 
 .search {
