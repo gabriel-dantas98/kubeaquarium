@@ -2,6 +2,7 @@ import { AquariumScene } from './scene';
 import { PodStore, Stream } from './stream';
 import { DetailPanel } from './hud/detail';
 import { SearchHUD, ALL, type Filter } from './hud/search';
+import { RadarHUD, type RadarItem } from './hud/radar';
 import { LabelLayer } from './hud/labels';
 import type { PodView, StreamEvent } from './types';
 
@@ -27,6 +28,12 @@ const search = new SearchHUD({
   },
 });
 
+const radar = new RadarHUD({
+  getItems: listRadarItems,
+  onSelect: selectRadarItem,
+});
+void radar;
+
 let activeFilter: Filter = ALL;
 let activeQuery = '';
 let namespaceCounts = new Map<string, number>();
@@ -38,6 +45,40 @@ function applyFilter(filter: Filter, raw: string) {
   activeQuery = raw;
   scene.setFilter(filter, raw.trim().length > 0, store.pods);
   search.setCount(scene.countMatched(), store.pods.size, raw.trim().length > 0);
+}
+
+function podToRadarItem(p: PodView): RadarItem {
+  const status = p.reason || p.phase;
+  return {
+    id: p.uid,
+    kind: 'pod',
+    name: p.name,
+    namespace: p.namespace,
+    status,
+    meta: p.node,
+    tokens: [
+      'pod',
+      p.name,
+      p.namespace,
+      status,
+      p.phase,
+      p.reason,
+      p.node,
+    ].filter(Boolean).map(v => v.toLowerCase()),
+  };
+}
+
+function listRadarItems(): RadarItem[] {
+  return [...store.pods.values()].map(podToRadarItem);
+}
+
+function selectRadarItem(item: RadarItem) {
+  if (item.kind !== 'pod') return;
+  const pod = store.pods.get(item.id);
+  if (!pod) return;
+  scene.focusOnPod(item.id);
+  scene.setFocused(item.id);
+  detail.show(pod);
 }
 
 const stream = new Stream((ev) => {

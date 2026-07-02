@@ -25,6 +25,21 @@
                placeholder="filter — name, or ns:web phase:Running node:..." />
         <span id="search-count" class="search-count">0 / 0</span>
       </div>
+      <div id="radar" class="radar hidden" aria-label="Resource radar">
+        <div class="radar-scope" id="radar-scope" aria-hidden="true"></div>
+        <div class="radar-console">
+          <div class="radar-head">
+            <span class="radar-title">resource radar</span>
+            <span id="radar-count" class="radar-count"></span>
+          </div>
+          <div class="radar-input-row">
+            <span class="radar-prompt">SCAN</span>
+            <input id="radar-input" type="text" autocomplete="off" spellcheck="false" placeholder="pod, namespace, phase, node..." />
+          </div>
+          <div id="radar-results" class="radar-results" role="listbox"></div>
+          <div id="radar-empty" class="radar-empty hidden">no resources detected</div>
+        </div>
+      </div>
       <div id="labels"></div>
 
       <div id="empty-state" class="empty-state hidden">
@@ -85,7 +100,7 @@
       </aside>
 
       <footer class="hint">
-        <kbd>/</kbd> filter · <kbd>drag</kbd> orbit · <kbd>scroll</kbd> zoom · <kbd>click</kbd> select · <kbd>F</kbd> fly · <kbd>Esc</kbd> back
+        <kbd>/</kbd> filter · <kbd>⌘K</kbd>/<kbd>Ctrl K</kbd> radar · <kbd>drag</kbd> orbit · <kbd>scroll</kbd> zoom · <kbd>click</kbd> select · <kbd>F</kbd> fly · <kbd>Esc</kbd> back
       </footer>
     </div>
     <script type="module" src="/src/main.ts"></script>

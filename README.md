@@ -69,6 +69,7 @@ Namespace filtering is applied at informer creation. For multiple namespaces, ku
 | Action | Key |
 |---|---|
 | Filter pods (k9s-style)   | <kbd>/</kbd> |
+| Resource radar            | <kbd>Cmd/Ctrl</kbd> + <kbd>K</kbd> |
 | Orbit                     | drag |
 | Zoom                      | scroll |
 | Select & freeze a whale   | click |
