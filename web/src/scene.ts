@@ -73,6 +73,7 @@ export class AquariumScene {
   private mesh: THREE.InstancedMesh;
   private bubbleMesh: THREE.InstancedMesh;
   private projectileMesh: THREE.InstancedMesh;
+  private submarine: THREE.Group;
   private hybrid: HybridCamera;
 
   private slots = new Map<string, InstanceSlot>();
@@ -92,6 +93,10 @@ export class AquariumScene {
   private forward = new THREE.Vector3();
   private right = new THREE.Vector3();
   private up = new THREE.Vector3(0, 1, 0);
+  private prevCameraPos = new THREE.Vector3();
+  private cameraFrameDelta = new THREE.Vector3();
+  private submarineBasePos = new THREE.Vector3(0, -0.94, -2.7);
+  private submarineKick = 0;
   private raycaster = new THREE.Raycaster();
   private pointer = new THREE.Vector2();
   private aimPoint = new THREE.Vector2(0, 0);
@@ -139,8 +144,11 @@ export class AquariumScene {
 
     this.camera = new THREE.PerspectiveCamera(58, window.innerWidth / window.innerHeight, 0.1, 600);
     this.camera.position.set(0, 8, 60);
+    this.prevCameraPos.copy(this.camera.position);
     this.scene.add(this.camera);
-    this.camera.add(buildSubmarineCockpit());
+    this.submarine = buildSubmarineCockpit();
+    this.submarineBasePos.copy(this.submarine.position);
+    this.camera.add(this.submarine);
     this.camera.add(new THREE.PointLight(0xfff4cf, 1.15, 8));
     this.hybrid = new HybridCamera(this.camera, canvas);
 
@@ -183,6 +191,22 @@ export class AquariumScene {
 
   get projectileCount(): number {
     return this.projectiles.length;
+  }
+
+  getSubmarineDebug() {
+    return {
+      visible: this.submarine.visible,
+      position: {
+        x: Number(this.submarine.position.x.toFixed(3)),
+        y: Number(this.submarine.position.y.toFixed(3)),
+        z: Number(this.submarine.position.z.toFixed(3)),
+      },
+      rotation: {
+        x: Number(this.submarine.rotation.x.toFixed(3)),
+        y: Number(this.submarine.rotation.y.toFixed(3)),
+        z: Number(this.submarine.rotation.z.toFixed(3)),
+      },
+    };
   }
 
   setAttackMode(enabled: boolean) {
@@ -511,6 +535,7 @@ export class AquariumScene {
         uid: slot.uid,
         name: slot.name,
         namespace: slot.namespace,
+        ...statusForSlot(slot),
         screen: { x: sx, y: sy, depth: distSq, offsetY: slot.baseScale * 18 + 14 },
         matched: this.filterActive ? slot.matched : false,
         focused: slot.uid === this.focusedUid,
@@ -605,6 +630,7 @@ export class AquariumScene {
       .addScaledVector(this.up, -0.2);
     const vel = this.forward.clone().multiplyScalar(78);
     this.projectiles.push({ pos, prev: pos.clone(), vel, age: 0, ttl: 2.6, armedAt: 0.05 });
+    this.submarineKick = 1;
     this.spawnImpactBubbles(pos, this.forward, 4);
   }
 
@@ -663,11 +689,15 @@ export class AquariumScene {
 
   private updateSubmarine(dt: number) {
     if (this.hybrid.mode !== 'dive') {
+      this.submarine.visible = false;
+      this.prevCameraPos.copy(this.camera.position);
       this.updateParticles(dt);
       return;
     }
 
+    this.submarine.visible = true;
     this.resolveSubmarineCollisions();
+    this.animateSubmarine(dt);
     const now = performance.now() / 1000;
     if (now >= this.nextBubbleAt) {
       this.nextBubbleAt = now + 0.045;
@@ -687,6 +717,38 @@ export class AquariumScene {
       }
     }
     this.updateParticles(dt);
+  }
+
+  private animateSubmarine(dt: number) {
+    const now = performance.now() / 1000;
+    const safeDt = Math.max(dt, 1 / 120);
+    this.cameraFrameDelta.copy(this.camera.position).sub(this.prevCameraPos).multiplyScalar(1 / safeDt);
+    this.prevCameraPos.copy(this.camera.position);
+    this.updateDiveBasis();
+
+    const forwardSpeed = THREE.MathUtils.clamp(this.cameraFrameDelta.dot(this.forward), -22, 22);
+    const lateralSpeed = THREE.MathUtils.clamp(this.cameraFrameDelta.dot(this.right), -22, 22);
+    const verticalSpeed = THREE.MathUtils.clamp(this.cameraFrameDelta.y, -18, 18);
+    const aimX = this.aimPoint.x;
+    const aimY = this.aimPoint.y;
+    const bob = Math.sin(now * 3.1) * 0.035 + Math.sin(now * 5.7) * 0.014;
+    const side = THREE.MathUtils.clamp(aimX * 0.22 + lateralSpeed * 0.012, -0.34, 0.34);
+    const lift = THREE.MathUtils.clamp(-aimY * 0.08 + verticalSpeed * 0.006, -0.18, 0.18);
+    const kick = this.submarineKick;
+
+    this.dummyPos.copy(this.submarineBasePos);
+    this.dummyPos.x += side;
+    this.dummyPos.y += bob + lift;
+    this.dummyPos.z += kick * 0.18;
+    this.submarine.position.lerp(this.dummyPos, Math.min(1, dt * 7));
+
+    const targetPitch = THREE.MathUtils.clamp(aimY * 0.14 - forwardSpeed * 0.004 + verticalSpeed * 0.012, -0.28, 0.28);
+    const targetYaw = THREE.MathUtils.clamp(-aimX * 0.18 + lateralSpeed * 0.006, -0.24, 0.24);
+    const targetRoll = THREE.MathUtils.clamp(-aimX * 0.24 - lateralSpeed * 0.018 + Math.sin(now * 2.4) * 0.035, -0.34, 0.34);
+    this.submarine.rotation.x = THREE.MathUtils.lerp(this.submarine.rotation.x, targetPitch + kick * 0.05, Math.min(1, dt * 8));
+    this.submarine.rotation.y = THREE.MathUtils.lerp(this.submarine.rotation.y, targetYaw, Math.min(1, dt * 8));
+    this.submarine.rotation.z = THREE.MathUtils.lerp(this.submarine.rotation.z, targetRoll + kick * 0.12, Math.min(1, dt * 8));
+    this.submarineKick = Math.max(0, this.submarineKick - dt * 5.5);
   }
 
   private updateDiveBasis() {
@@ -1025,6 +1087,18 @@ function gridKey(pos: THREE.Vector3, center: THREE.Vector3, cell: number): numbe
   const z = Math.floor((pos.z - center.z) / cell);
   // Spatial hash; arithmetic chosen so that adjacency offsets are simple sums.
   return x + y * 73856093 + z * 19349663;
+}
+
+function statusForSlot(slot: InstanceSlot): Pick<LabelTarget, 'status' | 'statusClass'> {
+  if (slot.reason === 'CrashLoopBackOff') return { status: 'CrashLooping', statusClass: 'err' };
+  if (slot.reason === 'ImagePullBackOff' || slot.reason === 'ErrImagePull') return { status: 'Image Pull', statusClass: 'err' };
+  if (slot.reason === 'Error') return { status: 'Error', statusClass: 'err' };
+  if (slot.phase === 'Pending') return { status: 'Pending', statusClass: 'warn' };
+  if (slot.phase === 'Running' && slot.ready) return { status: 'Healthy', statusClass: 'ok' };
+  if (slot.phase === 'Running') return { status: 'Not Ready', statusClass: 'warn' };
+  if (slot.phase === 'Succeeded') return { status: 'Completed', statusClass: 'info' };
+  if (slot.phase === 'Failed') return { status: 'Failed', statusClass: 'err' };
+  return { status: slot.reason || slot.phase || 'Unknown', statusClass: 'info' };
 }
 
 function distanceToSegmentSquared(point: THREE.Vector3, a: THREE.Vector3, b: THREE.Vector3): number {

@@ -333,6 +333,7 @@ window.addEventListener('pointerdown', (e) => {
   get diveMode() { return scene.isDiving; },
   get projectiles() { return scene.projectileCount; },
   get lastAttackHitUid() { return lastAttackHitUid; },
+  submarineDebug() { return scene.getSubmarineDebug(); },
   pause() { scene.paused = true; },
   resume() { scene.paused = false; },
 };

@@ -17,6 +17,8 @@ export interface LabelTarget {
   uid: string;
   name: string;
   namespace: string;
+  status: string;
+  statusClass: 'ok' | 'warn' | 'err' | 'info';
   screen: { x: number; y: number; depth: number; offsetY: number };
   matched: boolean;
   focused: boolean;
@@ -62,8 +64,10 @@ export class LabelLayer {
       const top = t.screen.y - t.screen.offsetY;
       div.style.left = left + 'px';
       div.style.top = top + 'px';
-      div.innerHTML = `<span class="ns">${escapeHtml(t.namespace)}</span>${escapeHtml(t.name)}`;
-      div.classList.remove('visible', 'focused', 'match');
+      div.innerHTML = `<span class="ns">${escapeHtml(t.namespace)}</span><span class="status">${escapeHtml(t.status)}</span>`;
+      div.title = `${t.namespace}/${t.name}`;
+      div.classList.remove('visible', 'focused', 'match', 'ok', 'warn', 'err', 'info');
+      div.classList.add(t.statusClass);
       if (t.focused) div.classList.add('focused');
       if (t.matched) div.classList.add('match');
 
@@ -122,6 +126,7 @@ function resetLabel(div: HTMLDivElement) {
   div.classList.remove('visible', 'focused', 'match');
   div.style.left = '';
   div.style.top = '';
+  div.title = '';
 }
 
 function escapeHtml(s: string): string {
