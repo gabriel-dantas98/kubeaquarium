@@ -73,6 +73,8 @@ export class AquariumScene {
   private camera: THREE.PerspectiveCamera;
   private clock = new THREE.Clock();
   private stats: Stats;
+  /** Set while the loop idles in `paused`; tells the loop to reset the stats meter on resume. */
+  private statsStale = false;
   private mat: THREE.ShaderMaterial;
   private mesh: THREE.InstancedMesh;
   private bubbleMesh: THREE.InstancedMesh;
@@ -187,6 +189,23 @@ export class AquariumScene {
 
     canvas.addEventListener('click', (e) => this.onCanvasClick(e));
     window.addEventListener('resize', () => this.onResize());
+  }
+
+  /**
+   * Rebuild the stats.js meter with fresh internal state.
+   *
+   * stats.js has no reset API: its FPS panel divides the frame count by
+   * wall-clock time since the last sample. While the render loop idles in
+   * `paused`, begin()/end() are not called but that internal clock keeps
+   * running, so the first sample after resuming is averaged over the whole
+   * pause and reads near 0 FPS (and permanently pollutes the min/max range).
+   * Recreating the instance makes measurement restart cleanly on resume.
+   */
+  private resetStats() {
+    this.stats.dom.remove();
+    this.stats = new Stats();
+    this.stats.dom.id = 'stats-container';
+    document.body.appendChild(this.stats.dom);
   }
 
   get isDiving(): boolean {
@@ -1067,8 +1086,15 @@ export class AquariumScene {
       if (this.paused) {
         // Idle: don't draw or simulate. Frees the main thread for things like
         // CDP captureScreenshot which otherwise compete with rAF.
+        this.statsStale = true;
         setTimeout(loop, 50);
         return;
+      }
+      if (this.statsStale) {
+        // Coming back from pause: stats.js would average its first FPS sample
+        // over the entire paused interval and report ~0 FPS. Start fresh.
+        this.statsStale = false;
+        this.resetStats();
       }
       this.stats.begin();
       const dt = Math.min(0.1, this.clock.getDelta());
