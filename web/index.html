@@ -13,6 +13,9 @@
       <header class="topbar">
         <div class="brand">🐳 kubeaquarium</div>
         <div class="meta">
+          <button id="attack-toggle" class="attack-toggle" type="button" aria-pressed="false" title="Arm attack mode">
+            ARM
+          </button>
           <span id="ctx-name">—</span>
           <span class="dot" id="ws-dot" title="WebSocket"></span>
           <span id="pod-count">0 pods</span>
@@ -41,6 +44,13 @@
         </div>
       </div>
       <div id="labels"></div>
+      <div id="attack-frame" class="attack-frame hidden" aria-hidden="true">
+        <div class="attack-corners"></div>
+        <div class="attack-copy">
+          <b>ATTACK MODE</b>
+          <span>missiles can delete pods</span>
+        </div>
+      </div>
 
       <div id="empty-state" class="empty-state hidden">
         <div class="empty-card">
@@ -50,7 +60,8 @@
           <div class="empty-tips">
             <div><kbd>/</kbd> filter pods (e.g. <code>ns:web</code>, <code>phase:!Running</code>)</div>
             <div><kbd>click</kbd> a whale to see events, YAML and live logs</div>
-            <div><kbd>F</kbd> swim through the cluster in first person</div>
+            <div><kbd>F</kbd> dive with the submarine</div>
+            <div><kbd>Cmd/Ctrl</kbd> + <kbd>L</kbd> arms attack mode</div>
           </div>
         </div>
       </div>
@@ -101,7 +112,7 @@
       </aside>
 
       <footer class="hint">
-        <kbd>/</kbd> filter · <kbd>⌘K</kbd>/<kbd>Ctrl K</kbd> radar · <kbd>drag</kbd> orbit · <kbd>scroll</kbd> zoom · <kbd>click</kbd> select · <kbd>F</kbd> fly · <kbd>Esc</kbd> back
+        <kbd>/</kbd> filter · <kbd>⌘K</kbd>/<kbd>Ctrl K</kbd> radar · <kbd>⌘L</kbd>/<kbd>Ctrl L</kbd> attack · <kbd>drag</kbd> orbit · <kbd>click</kbd> select/fire · <kbd>F</kbd> dive · <kbd>Esc</kbd> back
       </footer>
     </div>
     <script type="module" src="/src/main.ts"></script>

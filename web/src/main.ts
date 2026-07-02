@@ -10,6 +10,8 @@ const canvas = document.getElementById('scene') as HTMLCanvasElement;
 const scene = new AquariumScene(canvas);
 const detail = new DetailPanel();
 const labels = new LabelLayer();
+const attackFrame = document.getElementById('attack-frame') as HTMLDivElement;
+const attackToggle = document.getElementById('attack-toggle') as HTMLButtonElement;
 
 const store = new PodStore();
 
@@ -39,6 +41,7 @@ let activeQuery = '';
 let namespaceCounts = new Map<string, number>();
 let pendingEvents: StreamEvent[] = [];
 let flushScheduled = false;
+let attackMode = false;
 
 function applyFilter(filter: Filter, raw: string) {
   activeFilter = filter;
@@ -81,6 +84,34 @@ function selectRadarItem(item: RadarItem) {
   detail.show(pod);
 }
 
+function isEditing(target: EventTarget | null): boolean {
+  const el = target as HTMLElement | null;
+  return !!el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable);
+}
+
+function setAttackMode(enabled: boolean) {
+  attackMode = enabled;
+  scene.setAttackMode(enabled);
+  document.body.classList.toggle('attack', enabled);
+  attackFrame.classList.toggle('hidden', !enabled);
+  attackToggle.classList.toggle('active', enabled);
+  attackToggle.setAttribute('aria-pressed', String(enabled));
+  attackToggle.title = enabled ? 'Disarm attack mode' : 'Arm attack mode';
+}
+
+async function deletePodFromAttackHit(uid: string) {
+  if (!attackMode) return;
+  const pod = store.pods.get(uid);
+  if (!pod) return;
+  const url = `/api/pod/${encodeURIComponent(pod.namespace)}/${encodeURIComponent(pod.name)}`;
+  const res = await fetch(url, { method: 'DELETE' });
+  if (!res.ok) {
+    console.warn('[kubeaquarium] missile delete failed', pod.namespace, pod.name, await res.text());
+    return;
+  }
+  scene.removePod(uid);
+}
+
 const stream = new Stream((ev) => {
   pendingEvents.push(ev);
   scheduleFlush();
@@ -98,6 +129,10 @@ scene.onSelect = (uid) => {
   scene.setFocused(uid);
   detail.show(p);
 };
+scene.onAttackHit = (uid) => {
+  void deletePodFromAttackHit(uid);
+};
+attackToggle.addEventListener('click', () => setAttackMode(!attackMode));
 
 // Hook DetailPanel close to release focus
 const origHide = detail.hide.bind(detail);
@@ -106,8 +141,13 @@ detail.hide = () => {
   scene.setFocused(null);
 };
 
-// Esc closes detail (and releases the freeze) when not in fly mode / search
+// Esc closes detail (and releases the freeze) when not in dive/search.
 window.addEventListener('keydown', (e) => {
+  if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'l' && !isEditing(e.target)) {
+    e.preventDefault();
+    setAttackMode(!attackMode);
+    return;
+  }
   if (e.key === 'Escape') {
     if (!document.getElementById('detail')?.classList.contains('hidden')) {
       detail.hide();

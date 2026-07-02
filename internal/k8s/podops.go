@@ -25,6 +25,12 @@ func PodYAML(ctx context.Context, cs kubernetes.Interface, ns, name string) ([]b
 	return yaml.Marshal(p)
 }
 
+// DeletePod deletes a pod in the target namespace. The watcher stream will
+// publish the deletion once Kubernetes confirms it.
+func DeletePod(ctx context.Context, cs kubernetes.Interface, ns, name string) error {
+	return cs.CoreV1().Pods(ns).Delete(ctx, name, metav1.DeleteOptions{})
+}
+
 type PodEvent struct {
 	LastSeen string `json:"lastSeen"`
 	Type     string `json:"type"`     // Normal | Warning

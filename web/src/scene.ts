@@ -4,6 +4,7 @@ import type { PodView } from './types';
 import { buildWhaleGeometry, buildWhaleMaterial } from './whale';
 import { layoutNamespaces, buildBubble, placeInBubble, type NamespaceLayout } from './namespaces';
 import { HybridCamera } from './camera';
+import { buildSubmarineCockpit } from './submarine';
 import type { Filter } from './hud/search';
 import { ALL } from './hud/search';
 import type { LabelTarget } from './hud/labels';
@@ -11,6 +12,8 @@ import type { LabelTarget } from './hud/labels';
 const MAX_INSTANCES = 20000;
 const BOIDS_INSTANCE_LIMIT = 1200;
 const BOIDS_MIN_FPS = 24;
+const MAX_BUBBLES = 180;
+const MAX_PROJECTILES = 32;
 
 const COLORS = {
   running: new THREE.Color(0x2496ed),
@@ -42,6 +45,22 @@ interface InstanceSlot {
   baseColor: THREE.Color; // pre-dim color, so we can re-tint cheaply
 }
 
+interface Particle {
+  pos: THREE.Vector3;
+  vel: THREE.Vector3;
+  age: number;
+  ttl: number;
+  scale: number;
+}
+
+interface Projectile {
+  pos: THREE.Vector3;
+  vel: THREE.Vector3;
+  age: number;
+  ttl: number;
+  armedAt: number;
+}
+
 export class AquariumScene {
   private renderer: THREE.WebGLRenderer;
   private scene = new THREE.Scene();
@@ -50,6 +69,8 @@ export class AquariumScene {
   private stats: Stats;
   private mat: THREE.ShaderMaterial;
   private mesh: THREE.InstancedMesh;
+  private bubbleMesh: THREE.InstancedMesh;
+  private projectileMesh: THREE.InstancedMesh;
   private hybrid: HybridCamera;
 
   private slots = new Map<string, InstanceSlot>();
@@ -66,12 +87,20 @@ export class AquariumScene {
   private dummyPos = new THREE.Vector3();
   private dummyQuat = new THREE.Quaternion();
   private dummyScale = new THREE.Vector3();
+  private forward = new THREE.Vector3();
+  private right = new THREE.Vector3();
+  private up = new THREE.Vector3(0, 1, 0);
   private raycaster = new THREE.Raycaster();
   private pointer = new THREE.Vector2();
   private pixelRatio = 1;
   private nextQualityCheckAt = 0;
+  private particles: Particle[] = [];
+  private projectiles: Projectile[] = [];
+  private attackMode = false;
+  private nextBubbleAt = 0;
 
   onSelect?: (uid: string) => void;
+  onAttackHit?: (uid: string) => void;
   fpsAvg = 60;
   paused = false;
   focusedUid: string | null = null;
@@ -107,6 +136,9 @@ export class AquariumScene {
 
     this.camera = new THREE.PerspectiveCamera(58, window.innerWidth / window.innerHeight, 0.1, 600);
     this.camera.position.set(0, 8, 60);
+    this.scene.add(this.camera);
+    this.camera.add(buildSubmarineCockpit());
+    this.camera.add(new THREE.PointLight(0xfff4cf, 1.15, 8));
     this.hybrid = new HybridCamera(this.camera, canvas);
 
     const geo = buildWhaleGeometry();
@@ -118,12 +150,32 @@ export class AquariumScene {
     this.mesh.geometry.setAttribute('instanceColor', new THREE.InstancedBufferAttribute(colors, 3));
     this.scene.add(this.mesh);
 
+    this.bubbleMesh = new THREE.InstancedMesh(
+      new THREE.SphereGeometry(0.09, 8, 6),
+      new THREE.MeshBasicMaterial({ color: 0xbdefff, transparent: true, opacity: 0.48, depthWrite: false }),
+      MAX_BUBBLES,
+    );
+    this.bubbleMesh.count = 0;
+    this.scene.add(this.bubbleMesh);
+
+    this.projectileMesh = new THREE.InstancedMesh(
+      new THREE.SphereGeometry(0.18, 12, 8),
+      new THREE.MeshBasicMaterial({ color: 0xff5f6d }),
+      MAX_PROJECTILES,
+    );
+    this.projectileMesh.count = 0;
+    this.scene.add(this.projectileMesh);
+
     this.stats = new Stats();
     this.stats.dom.id = 'stats-container';
     document.body.appendChild(this.stats.dom);
 
     canvas.addEventListener('click', (e) => this.onCanvasClick(e));
     window.addEventListener('resize', () => this.onResize());
+  }
+
+  setAttackMode(enabled: boolean) {
+    this.attackMode = enabled;
   }
 
   private onResize() {
@@ -452,8 +504,12 @@ export class AquariumScene {
   }
 
   private onCanvasClick(e: MouseEvent) {
-    const flyPick = this.hybrid.mode === 'fly';
-    if (flyPick) {
+    const divePick = this.hybrid.mode === 'dive';
+    if (divePick && this.attackMode) {
+      this.fireProjectile();
+      return;
+    }
+    if (divePick) {
       this.pointer.set(0, 0);
     } else {
       const rect = this.canvas.getBoundingClientRect();
@@ -467,7 +523,7 @@ export class AquariumScene {
     const ray = this.raycaster.ray;
     const tmp = new THREE.Vector3();
     for (const slot of this.slots.values()) {
-      const r = slot.baseScale * (flyPick ? 3.2 : 1.4);
+      const r = slot.baseScale * (divePick ? 3.2 : 1.4);
       tmp.copy(slot.pos).sub(ray.origin);
       const proj = tmp.dot(ray.direction);
       if (proj < 0) continue;
@@ -477,7 +533,7 @@ export class AquariumScene {
         bestUid = slot.uid;
       }
     }
-    if (!bestUid && flyPick) bestUid = this.closestToCrosshairUid(96);
+    if (!bestUid && divePick) bestUid = this.closestToCrosshairUid(96);
     if (bestUid) {
       this.focusOnPod(bestUid);
       this.onSelect?.(bestUid);
@@ -511,6 +567,153 @@ export class AquariumScene {
       }
     }
     return bestUid;
+  }
+
+  private fireProjectile() {
+    if (this.projectiles.length >= MAX_PROJECTILES) return;
+    this.updateDiveBasis();
+    const pos = this.camera.position.clone()
+      .addScaledVector(this.forward, 2.3)
+      .addScaledVector(this.up, -0.2);
+    const vel = this.forward.clone().multiplyScalar(78);
+    this.projectiles.push({ pos, vel, age: 0, ttl: 2.6, armedAt: 0.05 });
+    this.spawnImpactBubbles(pos, this.forward, 4);
+  }
+
+  private updateProjectiles(dt: number) {
+    let write = 0;
+    const quat = new THREE.Quaternion();
+    const baseForward = new THREE.Vector3(0, 0, 1);
+    for (const projectile of this.projectiles) {
+      projectile.age += dt;
+      if (projectile.age >= projectile.ttl) continue;
+      projectile.pos.addScaledVector(projectile.vel, dt);
+
+      const hit = projectile.age >= projectile.armedAt ? this.projectileHitUid(projectile) : null;
+      if (hit) {
+        this.spawnImpactBubbles(projectile.pos, projectile.vel.clone().normalize(), 18);
+        this.onAttackHit?.(hit);
+        continue;
+      }
+
+      this.projectiles[write++] = projectile;
+      quat.setFromUnitVectors(baseForward, projectile.vel.clone().normalize());
+      this.dummyPos.copy(projectile.pos);
+      this.dummyScale.set(0.72, 0.72, 1.9);
+      this.dummyMatrix.compose(this.dummyPos, quat, this.dummyScale);
+      this.projectileMesh.setMatrixAt(write - 1, this.dummyMatrix);
+    }
+    this.projectiles.length = write;
+    this.projectileMesh.count = write;
+    this.projectileMesh.instanceMatrix.needsUpdate = true;
+  }
+
+  private projectileHitUid(projectile: Projectile): string | null {
+    let bestUid: string | null = null;
+    let bestDist = Infinity;
+    for (const slot of this.slots.values()) {
+      if (slot.removingAt !== undefined) continue;
+      const radius = slot.collisionRadius * 1.35 + 0.35;
+      const dist = projectile.pos.distanceToSquared(slot.pos);
+      if (dist <= radius * radius && dist < bestDist) {
+        bestDist = dist;
+        bestUid = slot.uid;
+      }
+    }
+    return bestUid;
+  }
+
+  private updateSubmarine(dt: number) {
+    if (this.hybrid.mode !== 'dive') {
+      this.updateParticles(dt);
+      return;
+    }
+
+    this.resolveSubmarineCollisions();
+    const now = performance.now() / 1000;
+    if (now >= this.nextBubbleAt) {
+      this.nextBubbleAt = now + 0.045;
+      this.updateDiveBasis();
+      const base = this.camera.position.clone()
+        .addScaledVector(this.forward, -1.45)
+        .addScaledVector(this.up, -0.45);
+      for (let i = 0; i < 2; i++) {
+        const jitter = this.right.clone().multiplyScalar((Math.random() - 0.5) * 0.55)
+          .addScaledVector(this.up, (Math.random() - 0.5) * 0.28);
+        this.addParticle(
+          base.clone().add(jitter),
+          this.forward.clone().multiplyScalar(-1.8 - Math.random() * 1.2).addScaledVector(this.up, 0.8 + Math.random() * 0.9),
+          1.1 + Math.random() * 0.7,
+          0.45 + Math.random() * 0.35,
+        );
+      }
+    }
+    this.updateParticles(dt);
+  }
+
+  private updateDiveBasis() {
+    this.camera.getWorldDirection(this.forward).normalize();
+    this.right.crossVectors(this.forward, this.up);
+    if (this.right.lengthSq() < 0.0001) this.right.set(1, 0, 0);
+    else this.right.normalize();
+  }
+
+  private resolveSubmarineCollisions() {
+    const subRadius = 1.1;
+    const pos = this.camera.position;
+    for (const slot of this.slots.values()) {
+      if (slot.removingAt !== undefined) continue;
+      this.dummyPos.copy(pos).sub(slot.pos);
+      const minDist = subRadius + slot.collisionRadius * 1.1;
+      const dist = this.dummyPos.length();
+      if (dist > 0.001 && dist < minDist) {
+        pos.addScaledVector(this.dummyPos.normalize(), minDist - dist);
+      }
+    }
+    const worldLimit = 205;
+    const fromCenter = pos.length();
+    if (fromCenter > worldLimit) pos.multiplyScalar(worldLimit / fromCenter);
+  }
+
+  private spawnImpactBubbles(origin: THREE.Vector3, normal: THREE.Vector3, count: number) {
+    for (let i = 0; i < count; i++) {
+      const spread = new THREE.Vector3(
+        (Math.random() - 0.5) * 3,
+        Math.random() * 2.4,
+        (Math.random() - 0.5) * 3,
+      );
+      this.addParticle(
+        origin.clone(),
+        normal.clone().multiplyScalar(-1.4 - Math.random() * 2.4).add(spread),
+        0.7 + Math.random() * 0.8,
+        0.35 + Math.random() * 0.55,
+      );
+    }
+  }
+
+  private addParticle(pos: THREE.Vector3, vel: THREE.Vector3, ttl: number, scale: number) {
+    if (this.particles.length >= MAX_BUBBLES) this.particles.shift();
+    this.particles.push({ pos, vel, age: 0, ttl, scale });
+  }
+
+  private updateParticles(dt: number) {
+    let write = 0;
+    for (const p of this.particles) {
+      p.age += dt;
+      if (p.age >= p.ttl) continue;
+      p.vel.y += dt * 0.28;
+      p.pos.addScaledVector(p.vel, dt);
+      const life = 1 - p.age / p.ttl;
+      this.particles[write++] = p;
+      this.dummyPos.copy(p.pos);
+      this.dummyQuat.identity();
+      this.dummyScale.setScalar(p.scale * (0.35 + life * 0.85));
+      this.dummyMatrix.compose(this.dummyPos, this.dummyQuat, this.dummyScale);
+      this.bubbleMesh.setMatrixAt(write - 1, this.dummyMatrix);
+    }
+    this.particles.length = write;
+    this.bubbleMesh.count = write;
+    this.bubbleMesh.instanceMatrix.needsUpdate = true;
   }
 
   // ----------------------- Simulation -----------------------
@@ -705,7 +908,9 @@ export class AquariumScene {
       this.hybrid.update(dt);
       this.mat.uniforms.uTime.value += dt;
 
+      this.updateSubmarine(dt);
       this.simulate(dt);
+      this.updateProjectiles(dt);
 
       const now = performance.now() / 1000;
       this.updateRendererQuality(now);

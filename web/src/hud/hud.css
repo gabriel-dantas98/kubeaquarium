@@ -27,7 +27,7 @@ html, body {
   cursor: grab;
 }
 #scene:active { cursor: grabbing; }
-body.fly #scene { cursor: none; }
+body.dive #scene { cursor: none; }
 
 #hud {
   position: fixed; inset: 0; pointer-events: none;
@@ -42,6 +42,25 @@ body.fly #scene { cursor: none; }
 }
 .brand { font-weight: 600; letter-spacing: 0.3px; }
 .meta { display: flex; gap: 14px; align-items: center; color: var(--text-dim); font-variant-numeric: tabular-nums; }
+.attack-toggle {
+  pointer-events: auto;
+  background: rgba(248,113,113,0.08);
+  border: 1px solid rgba(248,113,113,0.38);
+  border-radius: 6px;
+  color: #fecdd3;
+  cursor: pointer;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  padding: 4px 8px;
+}
+.attack-toggle:hover,
+.attack-toggle.active {
+  background: rgba(248,113,113,0.2);
+  color: #fff1f2;
+  box-shadow: 0 0 16px rgba(248,113,113,0.24);
+}
 .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--err); display: inline-block; box-shadow: 0 0 8px currentColor; transition: background .2s; }
 .dot.live { background: var(--ok); }
 
@@ -201,7 +220,60 @@ body.fly #scene { cursor: none; }
   border: 1.5px solid rgba(255,255,255,0.65);
   display: none; pointer-events: none;
 }
-body.fly .crosshair { display: block; }
+body.dive .crosshair { display: block; }
+body.attack .crosshair {
+  width: 24px; height: 24px;
+  border-color: rgba(248,113,113,0.95);
+  box-shadow: 0 0 18px rgba(248,113,113,0.7), inset 0 0 10px rgba(248,113,113,0.25);
+}
+
+/* ------- Attack frame ------- */
+
+.attack-frame {
+  position: fixed; inset: 0;
+  pointer-events: none;
+  border: 2px solid rgba(248,113,113,0.65);
+  box-shadow: inset 0 0 52px rgba(248,113,113,0.22), inset 0 0 120px rgba(248,113,113,0.08);
+  opacity: 1;
+  transition: opacity .16s;
+}
+#hud > .attack-frame.hidden { opacity: 0; pointer-events: none; }
+.attack-corners::before,
+.attack-corners::after,
+.attack-frame::before,
+.attack-frame::after {
+  content: "";
+  position: fixed;
+  width: 58px;
+  height: 58px;
+  border-color: rgba(248,113,113,0.95);
+  border-style: solid;
+  filter: drop-shadow(0 0 10px rgba(248,113,113,0.6));
+}
+.attack-frame::before { left: 14px; top: 14px; border-width: 3px 0 0 3px; }
+.attack-frame::after { right: 14px; top: 14px; border-width: 3px 3px 0 0; }
+.attack-corners::before { left: 14px; bottom: 14px; border-width: 0 0 3px 3px; }
+.attack-corners::after { right: 14px; bottom: 14px; border-width: 0 3px 3px 0; }
+.attack-copy {
+  position: fixed;
+  top: 58px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  padding: 7px 12px;
+  border: 1px solid rgba(248,113,113,0.65);
+  border-radius: 6px;
+  background: rgba(31, 7, 13, 0.76);
+  color: #fecdd3;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+  letter-spacing: .4px;
+  text-transform: uppercase;
+}
+.attack-copy b { color: #f87171; }
+.attack-copy span { color: rgba(254,205,211,0.82); }
 
 /* ------- Search overlay (k9s-style) ------- */
 

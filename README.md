@@ -72,8 +72,10 @@ Namespace filtering is applied at informer creation. For multiple namespaces, ku
 | Resource radar            | <kbd>Cmd/Ctrl</kbd> + <kbd>K</kbd> |
 | Orbit                     | drag |
 | Zoom                      | scroll |
-| Select & freeze a whale   | click (center ray in fly mode) |
-| Fly mode (1st person)     | <kbd>F</kbd> (then WASD + mouse, Space/Shift up/down) |
+| Select & freeze a whale   | click (center ray in dive mode) |
+| Dive mode / submarine     | <kbd>F</kbd> (then WASD + mouse, Space/Shift up/down) |
+| Attack mode               | <kbd>Cmd/Ctrl</kbd> + <kbd>L</kbd> |
+| Fire missile              | click while attack mode is armed |
 | Back to orbit / close panel | <kbd>Esc</kbd> |
 
 ## Filter syntax
@@ -110,6 +112,10 @@ Multiple terms = AND. Press <kbd>Enter</kbd> to dolly to the closest match.
 - **YAML** — pod spec (managedFields stripped)
 - **Logs** — streaming via HTTP chunked, container picker, follow toggle, clear button
 - Use the expand button in the panel header when logs or YAML need more horizontal space.
+
+## Submarine attack mode
+
+Press <kbd>F</kbd> to enter dive mode and pilot the submarine. Engine bubbles and collision keep the submarine grounded in the aquarium. Press <kbd>Cmd/Ctrl</kbd> + <kbd>L</kbd> to arm attack mode; while armed, the red frame warns that missiles can delete real Kubernetes pods. A missile hit calls the local kubeaquarium server, which deletes the pod through the active Kubernetes context.
 
 ## Performance
 
