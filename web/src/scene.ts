@@ -14,6 +14,9 @@ const BOIDS_INSTANCE_LIMIT = 1200;
 const BOIDS_MIN_FPS = 24;
 const MAX_BUBBLES = 180;
 const MAX_PROJECTILES = 32;
+const MAX_FRAGMENTS = 64;
+const KILL_POP_DURATION = 0.25;
+const FLASH_DURATION = 0.2;
 
 const COLORS = {
   running: new THREE.Color(0x2496ed),
@@ -40,6 +43,8 @@ interface InstanceSlot {
   pitch: number;
   spawnAt: number;
   removingAt?: number;
+  /** Set when destroyed by a missile: distinct death pop instead of the slow sink. */
+  killedAt?: number;
   wanderSeed: number;
   matched: boolean;       // current filter result
   baseColor: THREE.Color; // pre-dim color, so we can re-tint cheaply
@@ -52,6 +57,8 @@ interface Particle {
   age: number;
   ttl: number;
   scale: number;
+  /** Explosion fragments only: per-instance tint in the missile palette. */
+  color?: THREE.Color;
 }
 
 interface Projectile {
@@ -79,6 +86,11 @@ export class AquariumScene {
   private mesh: THREE.InstancedMesh;
   private bubbleMesh: THREE.InstancedMesh;
   private projectileMesh: THREE.InstancedMesh;
+  private fragmentMesh: THREE.InstancedMesh;
+  private flashMesh: THREE.Mesh;
+  private flashMat: THREE.MeshBasicMaterial;
+  private flashStart = -1;
+  private flashSize = 1;
   private submarine: THREE.Group;
   private hybrid: HybridCamera;
 
@@ -109,6 +121,7 @@ export class AquariumScene {
   private pixelRatio = 1;
   private nextQualityCheckAt = 0;
   private particles: Particle[] = [];
+  private fragments: Particle[] = [];
   private projectiles: Projectile[] = [];
   private attackMode = false;
   private nextBubbleAt = 0;
@@ -182,6 +195,36 @@ export class AquariumScene {
     );
     this.projectileMesh.count = 0;
     this.scene.add(this.projectileMesh);
+
+    // Explosion fragments: additive glowing shards in the missile palette.
+    this.fragmentMesh = new THREE.InstancedMesh(
+      new THREE.SphereGeometry(0.16, 6, 5),
+      new THREE.MeshBasicMaterial({
+        color: 0xffffff,
+        transparent: true,
+        opacity: 0.95,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+      }),
+      MAX_FRAGMENTS,
+    );
+    this.fragmentMesh.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(MAX_FRAGMENTS * 3), 3);
+    this.fragmentMesh.count = 0;
+    this.fragmentMesh.frustumCulled = false;
+    this.scene.add(this.fragmentMesh);
+
+    // Impact flash: additive sphere that expands and fades over ~200ms.
+    this.flashMat = new THREE.MeshBasicMaterial({
+      color: 0xffc98a,
+      transparent: true,
+      opacity: 0,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+    });
+    this.flashMesh = new THREE.Mesh(new THREE.SphereGeometry(1, 16, 12), this.flashMat);
+    this.flashMesh.visible = false;
+    this.flashMesh.frustumCulled = false;
+    this.scene.add(this.flashMesh);
 
     this.stats = new Stats();
     this.stats.dom.id = 'stats-container';
@@ -329,6 +372,7 @@ export class AquariumScene {
       slot.collisionRadius = slot.baseScale * 1.0;
       slot.phase = p.phase; slot.reason = p.reason; slot.ready = p.ready;
       slot.removingAt = undefined;
+      slot.killedAt = undefined;
       slot.matched = this.filter(p);
       slot.baseColor = this.colorFor(p);
     }
@@ -392,6 +436,8 @@ export class AquariumScene {
   removePod(uid: string) {
     const slot = this.slots.get(uid);
     if (!slot) return;
+    // A missile kill already runs its own (faster) death pop.
+    if (slot.killedAt !== undefined) return;
     slot.removingAt = performance.now() / 1000;
   }
 
@@ -720,8 +766,11 @@ export class AquariumScene {
 
       const hit = projectile.age >= projectile.armedAt ? this.projectileHitUid(projectile) : null;
       if (hit) {
-        this.spawnImpactBubbles(projectile.pos, projectile.vel.clone().normalize(), 18);
+        const victim = this.slots.get(hit);
+        this.spawnExplosion(projectile.pos, projectile.vel.clone().normalize(), victim ? victim.baseScale : 1);
         this.flashHit(hit);
+        this.killPod(hit);
+        this.hybrid.impulse();
         this.onAttackHit?.(hit);
         continue;
       }
@@ -880,6 +929,111 @@ export class AquariumScene {
   private addParticle(pos: THREE.Vector3, vel: THREE.Vector3, ttl: number, scale: number) {
     if (this.particles.length >= MAX_BUBBLES) this.particles.shift();
     this.particles.push({ pos, vel, age: 0, ttl, scale });
+  }
+
+  private addFragment(pos: THREE.Vector3, vel: THREE.Vector3, ttl: number, scale: number, color: THREE.Color) {
+    if (this.fragments.length >= MAX_FRAGMENTS) this.fragments.shift();
+    this.fragments.push({ pos, vel, age: 0, ttl, scale, color });
+  }
+
+  /**
+   * Hero-moment burst at the missile impact point: fast small bubbles plus a
+   * few larger glowing fragments in the missile's red/orange palette, and an
+   * expanding additive flash (~200ms).
+   */
+  private spawnExplosion(origin: THREE.Vector3, normal: THREE.Vector3, size = 1) {
+    // Scale the burst with the victim so it reads at typical firing range.
+    const mul = 0.8 + size * 0.6;
+    // 1. Radial bubble burst (fast, small, ~0.35-0.9s).
+    for (let i = 0; i < 26; i++) {
+      const dir = new THREE.Vector3(
+        Math.random() - 0.5,
+        Math.random() - 0.35, // slight upward bias, we are underwater
+        Math.random() - 0.5,
+      );
+      if (dir.lengthSq() < 0.0001) dir.set(0, 1, 0);
+      dir.normalize().multiplyScalar((2.5 + Math.random() * 5.5) * mul);
+      dir.addScaledVector(normal, -0.8 - Math.random() * 1.2);
+      this.addParticle(origin.clone(), dir, 0.35 + Math.random() * 0.55, (0.35 + Math.random() * 0.55) * mul);
+    }
+    // 2. Glowing fragments: larger, short-lived, red -> orange -> amber.
+    for (let i = 0; i < 12; i++) {
+      const dir = new THREE.Vector3(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5);
+      if (dir.lengthSq() < 0.0001) dir.set(1, 0, 0);
+      dir.normalize().multiplyScalar((1.8 + Math.random() * 4.2) * mul);
+      const heat = Math.random();
+      const color = new THREE.Color(1, 0.24 + heat * 0.5, 0.08 + heat * 0.2);
+      this.addFragment(origin.clone(), dir, 0.3 + Math.random() * 0.4, (1.2 + Math.random() * 1.6) * mul, color);
+    }
+    // 3. Flash sphere.
+    this.flashMesh.position.copy(origin);
+    this.flashSize = mul;
+    this.flashStart = performance.now() / 1000;
+    this.flashMesh.visible = true;
+  }
+
+  /**
+   * Missile kill: distinct death pop (scale up ~1.15x then shrink to 0 over
+   * ~250ms) with a few bubbles, instead of the slow terminating sink.
+   */
+  private killPod(uid: string) {
+    const slot = this.slots.get(uid);
+    if (!slot || slot.killedAt !== undefined) return;
+    const now = performance.now() / 1000;
+    slot.killedAt = now;
+    // Also mark removingAt so every "skip dying pods" check keeps working.
+    slot.removingAt = now;
+    for (let i = 0; i < 5; i++) {
+      const vel = new THREE.Vector3(
+        (Math.random() - 0.5) * 1.6,
+        0.8 + Math.random() * 1.4,
+        (Math.random() - 0.5) * 1.6,
+      );
+      this.addParticle(slot.pos.clone(), vel, 0.6 + Math.random() * 0.5, 0.3 + Math.random() * 0.4);
+    }
+  }
+
+  /** Fragments + impact flash; runs every frame, pooled/instanced, no allocs. */
+  private updateExplosionFx(dt: number) {
+    let write = 0;
+    const colorAttr = this.fragmentMesh.instanceColor!;
+    const colorArr = colorAttr.array as Float32Array;
+    for (const p of this.fragments) {
+      p.age += dt;
+      if (p.age >= p.ttl) continue;
+      // Water drag + slight buoyancy so shards feel submerged.
+      p.vel.multiplyScalar(Math.max(0, 1 - dt * 2.4));
+      p.vel.y += dt * 0.4;
+      p.pos.addScaledVector(p.vel, dt);
+      const life = 1 - p.age / p.ttl;
+      this.fragments[write++] = p;
+      this.dummyPos.copy(p.pos);
+      this.dummyQuat.identity();
+      this.dummyScale.setScalar(p.scale * life);
+      this.dummyMatrix.compose(this.dummyPos, this.dummyQuat, this.dummyScale);
+      this.fragmentMesh.setMatrixAt(write - 1, this.dummyMatrix);
+      const c = p.color!;
+      colorArr[(write - 1) * 3 + 0] = c.r;
+      colorArr[(write - 1) * 3 + 1] = c.g * (0.4 + life * 0.6); // cool toward red as it dies
+      colorArr[(write - 1) * 3 + 2] = c.b * life;
+    }
+    this.fragments.length = write;
+    this.fragmentMesh.count = write;
+    this.fragmentMesh.instanceMatrix.needsUpdate = true;
+    colorAttr.needsUpdate = true;
+
+    if (this.flashStart >= 0) {
+      const t = (performance.now() / 1000 - this.flashStart) / FLASH_DURATION;
+      if (t >= 1) {
+        this.flashStart = -1;
+        this.flashMesh.visible = false;
+        this.flashMat.opacity = 0;
+      } else {
+        const s = (0.7 + t * 2.6) * this.flashSize;
+        this.flashMesh.scale.setScalar(s);
+        this.flashMat.opacity = (1 - t) * (1 - t) * 0.85;
+      }
+    }
   }
 
   private updateParticles(dt: number) {
@@ -1104,6 +1258,7 @@ export class AquariumScene {
       this.updateSubmarine(dt);
       this.simulate(dt);
       this.updateProjectiles(dt);
+      this.updateExplosionFx(dt);
 
       const now = performance.now() / 1000;
       this.updateRendererQuality(now);
@@ -1117,7 +1272,19 @@ export class AquariumScene {
           colorDirty = true;
           if (expired) slot.hitFlashUntil = undefined;
         }
-        if (slot.removingAt !== undefined) {
+        if (slot.killedAt !== undefined) {
+          // Missile kill: pop up to ~1.15x, then shrink to 0 (~250ms total).
+          const t = (now - slot.killedAt) / KILL_POP_DURATION;
+          if (t >= 1) { toFree.push(slot); continue; }
+          const s = slot.baseScale * (t < 0.35
+            ? 1 + (t / 0.35) * 0.15
+            : 1.15 * (1 - (t - 0.35) / 0.65));
+          this.dummyPos.copy(slot.pos);
+          this.dummyQuat.setFromEuler(new THREE.Euler(slot.pitch, slot.yaw - Math.PI / 2, 0, 'YXZ'));
+          this.dummyScale.setScalar(Math.max(0, s));
+          this.dummyMatrix.compose(this.dummyPos, this.dummyQuat, this.dummyScale);
+          this.mesh.setMatrixAt(slot.index, this.dummyMatrix);
+        } else if (slot.removingAt !== undefined) {
           const t = (now - slot.removingAt) / 1.5;
           if (t >= 1) { toFree.push(slot); continue; }
           const s = slot.baseScale * (1 - t);
