@@ -365,6 +365,7 @@ window.addEventListener('pointerdown', (e) => {
   get projectiles() { return scene.projectileCount; },
   get lastAttackHitUid() { return lastAttackHitUid; },
   submarineDebug() { return scene.getSubmarineDebug(); },
+  slotsDebug() { return scene.getSlotsDebug(); },
   pause() { scene.paused = true; },
   resume() { scene.paused = false; },
 };

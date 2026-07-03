@@ -143,10 +143,12 @@ export function placeInBubble(layout: NamespaceLayout, uid: string, indexHint: n
   const seed = (hash(uid) + indexHint) >>> 0;
   // Convert seed to two angles
   const phi = (seed % 10000) / 10000 * Math.PI * 2;
-  const cosTheta = ((seed >> 13) % 10000) / 10000 * 2 - 1;
+  // Unsigned shift: seeds >= 2^31 with `>>` go negative, pushing cosTheta
+  // outside [-1,1] and turning sinTheta into NaN (invisible whales).
+  const cosTheta = ((seed >>> 13) % 10000) / 10000 * 2 - 1;
   const sinTheta = Math.sqrt(1 - cosTheta * cosTheta);
   // Random radius factor ∈ [0.35, 0.85]
-  const rf = 0.35 + ((seed >> 7) % 1000) / 1000 * 0.5;
+  const rf = 0.35 + ((seed >>> 7) % 1000) / 1000 * 0.5;
   const r = layout.radius * rf;
   return new THREE.Vector3(
     layout.center.x + r * sinTheta * Math.cos(phi),
