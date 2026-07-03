@@ -304,7 +304,8 @@ body.attack .crosshair {
 /* ------- Kill feed ------- */
 
 .kill-feed {
-  position: fixed; top: 52px; right: 16px;
+  /* Below the centered attack-mode banner so they never overlap at narrow widths. */
+  position: fixed; top: 96px; right: 16px;
   display: flex; flex-direction: column; gap: 6px;
   align-items: flex-end;
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
