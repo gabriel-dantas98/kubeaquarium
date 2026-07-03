@@ -259,6 +259,16 @@ export class AquariumScene {
     return this.projectiles.length;
   }
 
+  getSlotsDebug() {
+    return [...this.slots.values()].map(s => ({
+      ns: s.namespace,
+      name: s.name.slice(0, 24),
+      pos: [Number(s.pos.x.toFixed(1)), Number(s.pos.y.toFixed(1)), Number(s.pos.z.toFixed(1))],
+      scale: Number(s.baseScale.toFixed(2)),
+      index: s.index,
+    }));
+  }
+
   getSubmarineDebug() {
     return {
       visible: this.submarine.visible,
@@ -1336,7 +1346,8 @@ function hash(uid: string): number {
 
 function randomDirection(seed: number): THREE.Vector3 {
   const a = (seed % 10000) / 10000 * Math.PI * 2;
-  const c = ((seed >> 13) % 10000) / 10000 * 2 - 1;
+  // Unsigned shift: `>>` on seeds >= 2^31 goes negative and NaNs the sqrt.
+  const c = ((seed >>> 13) % 10000) / 10000 * 2 - 1;
   const s = Math.sqrt(1 - c * c);
   return new THREE.Vector3(Math.cos(a) * s, c * 0.4, Math.sin(a) * s).normalize();
 }
