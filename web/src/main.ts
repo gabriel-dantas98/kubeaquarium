@@ -136,19 +136,24 @@ async function deletePodFromAttackHit(uid: string) {
   if (!pod) return;
   const { namespace, name } = pod;
   if (isDemoMode) {
+    // No real cluster/watcher in demo mode to confirm the deletion, so the
+    // hit itself is the confirmation.
     store.apply({ type: 'deleted', uid });
     scene.removePod(uid);
     document.getElementById('pod-count')!.textContent = `${store.pods.size} pods`;
     pushKillFeed(namespace, name);
     return;
   }
+  // Don't remove the pod from the scene yet — it only disappears once the
+  // watcher stream confirms it's actually gone from the cluster (see the
+  // 'deleted' event handling below). Until then it stays alive, wounded.
   const url = `/api/pod/${encodeURIComponent(namespace)}/${encodeURIComponent(name)}`;
   const res = await fetch(url, { method: 'DELETE' });
   if (!res.ok) {
     console.warn('[kubeaquarium] missile delete failed', namespace, name, await res.text());
+    scene.clearTargeted(uid);
     return;
   }
-  scene.removePod(uid);
   pushKillFeed(namespace, name);
 }
 

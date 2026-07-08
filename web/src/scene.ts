@@ -45,6 +45,13 @@ interface InstanceSlot {
   removingAt?: number;
   /** Set when destroyed by a missile: distinct death pop instead of the slow sink. */
   killedAt?: number;
+  /**
+   * Set when hit by a missile and a delete has been requested from the
+   * cluster. The pod stays alive and swimming (tinted) until the real
+   * watcher stream confirms it is actually gone — removePod() then plays
+   * the fast death pop instead of the slow natural sink.
+   */
+  marked?: boolean;
   wanderSeed: number;
   matched: boolean;       // current filter result
   baseColor: THREE.Color; // pre-dim color, so we can re-tint cheaply
@@ -443,12 +450,49 @@ export class AquariumScene {
     return bestUid;
   }
 
+  /**
+   * Called when the pod is actually gone from the cluster (watcher-confirmed
+   * deletion). If it was previously hit by a missile (`marked`), play the
+   * fast death pop; otherwise the slow natural sink.
+   */
   removePod(uid: string) {
     const slot = this.slots.get(uid);
     if (!slot) return;
-    // A missile kill already runs its own (faster) death pop.
-    if (slot.killedAt !== undefined) return;
-    slot.removingAt = performance.now() / 1000;
+    if (slot.killedAt !== undefined) return; // already animating out
+    const now = performance.now() / 1000;
+    if (slot.marked) {
+      slot.killedAt = now;
+      slot.removingAt = now;
+      for (let i = 0; i < 5; i++) {
+        const vel = new THREE.Vector3(
+          (Math.random() - 0.5) * 1.6,
+          0.8 + Math.random() * 1.4,
+          (Math.random() - 0.5) * 1.6,
+        );
+        this.addParticle(slot.pos.clone(), vel, 0.6 + Math.random() * 0.5, 0.3 + Math.random() * 0.4);
+      }
+    } else {
+      slot.removingAt = now;
+    }
+  }
+
+  /** Missile hit: mark as wounded/targeted and request deletion. The pod
+   * keeps swimming (tinted) until removePod() confirms it is really gone. */
+  markTargeted(uid: string) {
+    const slot = this.slots.get(uid);
+    if (!slot || slot.marked) return;
+    slot.marked = true;
+    this.writeRenderColor(slot);
+    (this.mesh.geometry.getAttribute('instanceColor') as THREE.InstancedBufferAttribute).needsUpdate = true;
+  }
+
+  /** Delete request failed: revert the wounded tint, pod is still alive. */
+  clearTargeted(uid: string) {
+    const slot = this.slots.get(uid);
+    if (!slot || !slot.marked) return;
+    slot.marked = false;
+    this.writeRenderColor(slot);
+    (this.mesh.geometry.getAttribute('instanceColor') as THREE.InstancedBufferAttribute).needsUpdate = true;
   }
 
   private addToBubble(ns: string, uid: string) {
@@ -557,6 +601,13 @@ export class AquariumScene {
       r = Math.min(1, r * 1.2 + 0.15);
       g = Math.min(1, g * 1.2 + 0.18);
       b = Math.min(1, b * 1.2 + 0.22);
+    }
+    if (slot.marked) {
+      // Wounded: delete requested, awaiting cluster confirmation. Tint red
+      // but keep it readable — this can persist for a while.
+      r = Math.min(1, r * 0.5 + 0.55);
+      g = g * 0.35;
+      b = b * 0.35;
     }
     if (slot.hitFlashUntil && performance.now() / 1000 < slot.hitFlashUntil) {
       r = 1;
@@ -679,7 +730,7 @@ export class AquariumScene {
     const cx = (this.aimPoint.x * 0.5 + 0.5) * window.innerWidth;
     const cy = (-this.aimPoint.y * 0.5 + 0.5) * window.innerHeight;
     for (const slot of this.slots.values()) {
-      if (slot.removingAt !== undefined) continue;
+      if (slot.removingAt !== undefined || slot.marked) continue;
       this.projVec.copy(slot.pos);
       this.projVec.project(this.camera);
       if (this.projVec.z > 1 || this.projVec.z < -1) continue;
@@ -740,7 +791,7 @@ export class AquariumScene {
     let bestUid: string | null = null;
     let bestT = Infinity;
     for (const slot of this.slots.values()) {
-      if (slot.removingAt !== undefined) continue;
+      if (slot.removingAt !== undefined || slot.marked) continue;
       const r = slot.baseScale * 3.2;
       tmp.copy(slot.pos).sub(ray.origin);
       const proj = tmp.dot(ray.direction);
@@ -765,7 +816,7 @@ export class AquariumScene {
       // Home in on the aimed pod so moving whales still get hit.
       if (projectile.targetUid) {
         const t = this.slots.get(projectile.targetUid);
-        if (t && t.removingAt === undefined) projectile.target.copy(t.pos);
+        if (t && t.removingAt === undefined && !t.marked) projectile.target.copy(t.pos);
       }
       projectile.vel.copy(projectile.target).sub(projectile.pos);
       const remaining = projectile.vel.length();
@@ -779,7 +830,7 @@ export class AquariumScene {
         const victim = this.slots.get(hit);
         this.spawnExplosion(projectile.pos, projectile.vel.clone().normalize(), victim ? victim.baseScale : 1);
         this.flashHit(hit);
-        this.killPod(hit);
+        this.markTargeted(hit);
         this.hybrid.impulse();
         this.onAttackHit?.(hit);
         continue;
@@ -813,7 +864,7 @@ export class AquariumScene {
     let bestUid: string | null = null;
     let bestDist = Infinity;
     for (const slot of this.slots.values()) {
-      if (slot.removingAt !== undefined) continue;
+      if (slot.removingAt !== undefined || slot.marked) continue;
       const radius = slot.collisionRadius * 1.35 + 0.35;
       const dist = distanceToSegmentSquared(slot.pos, projectile.prev, projectile.pos);
       if (dist <= radius * radius && dist < bestDist) {
@@ -980,27 +1031,6 @@ export class AquariumScene {
     this.flashSize = mul;
     this.flashStart = performance.now() / 1000;
     this.flashMesh.visible = true;
-  }
-
-  /**
-   * Missile kill: distinct death pop (scale up ~1.15x then shrink to 0 over
-   * ~250ms) with a few bubbles, instead of the slow terminating sink.
-   */
-  private killPod(uid: string) {
-    const slot = this.slots.get(uid);
-    if (!slot || slot.killedAt !== undefined) return;
-    const now = performance.now() / 1000;
-    slot.killedAt = now;
-    // Also mark removingAt so every "skip dying pods" check keeps working.
-    slot.removingAt = now;
-    for (let i = 0; i < 5; i++) {
-      const vel = new THREE.Vector3(
-        (Math.random() - 0.5) * 1.6,
-        0.8 + Math.random() * 1.4,
-        (Math.random() - 0.5) * 1.6,
-      );
-      this.addParticle(slot.pos.clone(), vel, 0.6 + Math.random() * 0.5, 0.3 + Math.random() * 0.4);
-    }
   }
 
   /** Fragments + impact flash; runs every frame, pooled/instanced, no allocs. */
