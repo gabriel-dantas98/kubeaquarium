@@ -5,9 +5,13 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/gabriel-dantas98/kubeaquarium/internal/k8s"
+	"github.com/gorilla/websocket"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -15,6 +19,99 @@ import (
 	"k8s.io/client-go/kubernetes/fake"
 	ktesting "k8s.io/client-go/testing"
 )
+
+func TestSnapshotFailureReturnsServiceUnavailable(t *testing.T) {
+	cs := fake.NewSimpleClientset()
+	s := New("", nil, k8s.NewWatcher(cs), cs, nil)
+	s.snapshot = func() ([]k8s.PodView, error) { return nil, errors.New("cache unavailable") }
+	r := httptest.NewRecorder()
+	s.handleSnapshot(r, httptest.NewRequest(http.MethodGet, "/api/snapshot", nil))
+	if r.Code != http.StatusServiceUnavailable || !strings.Contains(r.Body.String(), "cache unavailable") {
+		t.Fatalf("snapshot response = %d %q", r.Code, r.Body.String())
+	}
+}
+
+func TestServeStreamPeriodicallyConvergesAfterDroppedEvent(t *testing.T) {
+	cs := fake.NewSimpleClientset()
+	s := New("", nil, k8s.NewWatcher(cs), cs, nil)
+	var mu sync.Mutex
+	pods := []k8s.PodView{{UID: "before"}}
+	s.snapshot = func() ([]k8s.PodView, error) {
+		mu.Lock()
+		defer mu.Unlock()
+		return append([]k8s.PodView(nil), pods...), nil
+	}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		conn, err := upgrader.Upgrade(w, r, nil)
+		if err != nil {
+			t.Errorf("upgrade: %v", err)
+			return
+		}
+		defer conn.Close()
+		s.serveStream(conn, make(chan []byte), 10*time.Millisecond)
+	}))
+	defer server.Close()
+	ws, _, err := websocket.DefaultDialer.Dial("ws"+strings.TrimPrefix(server.URL, "http"), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ws.Close()
+	readSnapshot := func() []k8s.PodView {
+		ws.SetReadDeadline(time.Now().Add(time.Second))
+		var got struct {
+			Type string        `json:"type"`
+			Pods []k8s.PodView `json:"pods"`
+		}
+		if err := ws.ReadJSON(&got); err != nil {
+			t.Fatal(err)
+		}
+		if got.Type != "snapshot" {
+			t.Fatalf("type = %q", got.Type)
+		}
+		return got.Pods
+	}
+	if got := readSnapshot(); len(got) != 1 || got[0].UID != "before" {
+		t.Fatalf("initial = %#v", got)
+	}
+	mu.Lock()
+	pods = []k8s.PodView{{UID: "after"}}
+	mu.Unlock()
+	if got := readSnapshot(); len(got) != 1 || got[0].UID != "after" {
+		t.Fatalf("periodic snapshot = %#v", got)
+	}
+}
+
+func TestServeStreamStopsWhenClientCloses(t *testing.T) {
+	cs := fake.NewSimpleClientset()
+	s := New("", nil, k8s.NewWatcher(cs), cs, nil)
+	returned := make(chan struct{})
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		conn, err := upgrader.Upgrade(w, r, nil)
+		if err != nil {
+			t.Errorf("upgrade: %v", err)
+			return
+		}
+		defer conn.Close()
+		s.serveStream(conn, make(chan []byte), time.Hour)
+		close(returned)
+	}))
+	defer server.Close()
+	ws, _, err := websocket.DefaultDialer.Dial("ws"+strings.TrimPrefix(server.URL, "http"), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := ws.ReadMessage(); err != nil {
+		t.Fatal(err)
+	}
+	if err := ws.Close(); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case <-returned:
+	case <-time.After(time.Second):
+		t.Fatal("writer remained blocked after client closed")
+	}
+}
 
 func TestDeleteRequiresUIDAndReturnsAcceptance(t *testing.T) {
 	cs := fake.NewSimpleClientset(&corev1.Pod{ObjectMeta: metav1.ObjectMeta{Namespace: "payments", Name: "api", UID: "pod-1"}})

@@ -23,12 +23,13 @@ type Server struct {
 	cs       kubernetes.Interface
 	hub      *Hub
 	ctxList  []k8s.ContextInfo
+	snapshot func() ([]k8s.PodView, error)
 }
 
 func New(addr string, staticFS fs.FS, watcher *k8s.Watcher, cs kubernetes.Interface, ctxList []k8s.ContextInfo) *Server {
 	return &Server{
 		addr: addr, staticFS: staticFS, watcher: watcher, cs: cs,
-		hub: NewHub(), ctxList: ctxList,
+		hub: NewHub(), ctxList: ctxList, snapshot: watcher.Snapshot,
 	}
 }
 
@@ -43,18 +44,7 @@ func (s *Server) Run(ctx context.Context) error {
 		json.NewEncoder(w).Encode(s.ctxList)
 	})
 
-	mux.HandleFunc("/api/snapshot", func(w http.ResponseWriter, r *http.Request) {
-		pods, err := s.watcher.Snapshot()
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusServiceUnavailable)
-			return
-		}
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]any{
-			"type": "snapshot",
-			"pods": pods,
-		})
-	})
+	mux.HandleFunc("/api/snapshot", s.handleSnapshot)
 
 	mux.HandleFunc("/api/stream", s.handleWS)
 	mux.HandleFunc("/api/pod/", s.handlePodOps)
@@ -107,8 +97,18 @@ func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
 	s.serveStream(conn, ch, 5*time.Second)
 }
 
+func (s *Server) handleSnapshot(w http.ResponseWriter, r *http.Request) {
+	pods, err := s.snapshot()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusServiceUnavailable)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]any{"type": "snapshot", "pods": pods})
+}
+
 func (s *Server) serveStream(conn *websocket.Conn, ch <-chan []byte, interval time.Duration) {
-	pods, err := s.watcher.Snapshot()
+	pods, err := s.snapshot()
 	if err != nil {
 		return
 	}
@@ -141,7 +141,7 @@ func (s *Server) serveStream(conn *websocket.Conn, ch <-chan []byte, interval ti
 				return
 			}
 		case <-ticker.C:
-			pods, err := s.watcher.Snapshot()
+			pods, err := s.snapshot()
 			if err != nil {
 				return
 			}
