@@ -43,3 +43,27 @@ Reviewed the final diff for scope and behavior. The implementation only changes 
 ## Concern
 
 No task-blocking concerns. The Vite chunk-size advisory remains, but this task does not alter bundle architecture.
+
+## Review fix 1
+
+The camera settings content is absolutely positioned outside its `<details>` element. The label context now measures `.settings-panel` itself while the camera settings are open.
+
+Commands run:
+
+```text
+DEMO_URL='http://127.0.0.1:7781/?demo' node video/scripts/check-labels.mjs
+```
+
+Result: passed with no output. The regression now opens Camera settings and confirms that visible pod and namespace labels do not overlap the rendered settings panel.
+
+```text
+cd web && npx tsc --noEmit && KUBEAQUARIUM_WEB_OUT_DIR=/tmp/kubeaquarium-review-build npm run build
+```
+
+Result: passed; Vite built 30 modules in 763 ms. The existing >500 kB chunk advisory remains.
+
+```text
+git diff --check
+```
+
+Result: passed with no output.

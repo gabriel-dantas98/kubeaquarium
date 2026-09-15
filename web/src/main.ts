@@ -198,6 +198,7 @@ detail.hide = () => {
 };
 
 const preferencesPanel = document.getElementById('camera-settings') as HTMLDetailsElement;
+const settingsPanel = preferencesPanel.querySelector('.settings-panel') as HTMLElement;
 function visibleRect(element: HTMLElement, visible: boolean): DOMRectReadOnly | undefined {
   if (!visible) return undefined;
   const rect = element.getBoundingClientRect();
@@ -210,7 +211,7 @@ function labelContext(): LabelContext {
     visibleRect(searchPanel, search.isOpen),
     visibleRect(radarPanel, radar.isOpen),
     visibleRect(detailPanel, detail.isOpen),
-    visibleRect(preferencesPanel, preferencesPanel.open),
+    visibleRect(settingsPanel, preferencesPanel.open),
     visibleRect(recoveryPanelElement, recoveryPanelElement.childElementCount > 0),
     visibleRect(missionPanel, missionPanel.childElementCount > 0),
   ].filter((rect): rect is DOMRectReadOnly => rect !== undefined);

@@ -23,6 +23,22 @@ try {
   });
   assert.equal(overlapsInteractiveHud, false, 'labels overlapped an interactive HUD panel');
 
+  await page.locator('#camera-settings summary').click();
+  await page.waitForFunction(() => {
+    const settings = document.querySelector('.settings-panel');
+    return document.getElementById('camera-settings')?.open && settings?.getBoundingClientRect().height;
+  });
+  const overlapsSettings = await page.evaluate(() => {
+    const settings = document.querySelector('.settings-panel')?.getBoundingClientRect();
+    if (!settings) return false;
+    return [...document.querySelectorAll('.pod-label.visible, .namespace-label.visible')]
+      .some(label => {
+        const rect = label.getBoundingClientRect();
+        return rect.left < settings.right && rect.right > settings.left && rect.top < settings.bottom && rect.bottom > settings.top;
+      });
+  });
+  assert.equal(overlapsSettings, false, 'labels overlapped the open camera settings panel');
+
   await page.keyboard.press('Control+k');
   await page.waitForFunction(() => !document.getElementById('radar')?.classList.contains('hidden'));
   const labelsWhileRadarOpen = await page.locator('.pod-label.visible, .namespace-label.visible').count();
