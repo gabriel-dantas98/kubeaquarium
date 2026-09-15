@@ -3,7 +3,7 @@ import { PodStore, Stream } from './stream';
 import { DetailPanel } from './hud/detail';
 import { SearchHUD, ALL, type Filter } from './hud/search';
 import { RadarHUD, type RadarItem } from './hud/radar';
-import { LabelLayer } from './hud/labels';
+import { LabelLayer, type LabelContext } from './hud/labels';
 import { DemoStream, demoContexts, isDemoMode } from './demo';
 import type { PodView, StreamEvent } from './types';
 import { RecoveryTracker } from './recovery';
@@ -17,6 +17,12 @@ const canvas = document.getElementById('scene') as HTMLCanvasElement;
 const scene = new AquariumScene(canvas);
 const detail = new DetailPanel();
 const labels = new LabelLayer();
+const topbar = document.querySelector('.topbar') as HTMLElement;
+const searchPanel = document.getElementById('search') as HTMLElement;
+const radarPanel = document.getElementById('radar') as HTMLElement;
+const detailPanel = document.getElementById('detail') as HTMLElement;
+const recoveryPanelElement = document.getElementById('recovery-panel') as HTMLElement;
+const missionPanel = document.getElementById('demo-mission') as HTMLElement;
 const attackFrame = document.getElementById('attack-frame') as HTMLDivElement;
 const attackToggle = document.getElementById('attack-toggle') as HTMLButtonElement;
 
@@ -192,6 +198,31 @@ detail.hide = () => {
 };
 
 const preferencesPanel = document.getElementById('camera-settings') as HTMLDetailsElement;
+function visibleRect(element: HTMLElement, visible: boolean): DOMRectReadOnly | undefined {
+  if (!visible) return undefined;
+  const rect = element.getBoundingClientRect();
+  return rect.width > 0 && rect.height > 0 ? rect : undefined;
+}
+
+function labelContext(): LabelContext {
+  const blockedRects = [
+    visibleRect(topbar, true),
+    visibleRect(searchPanel, search.isOpen),
+    visibleRect(radarPanel, radar.isOpen),
+    visibleRect(detailPanel, detail.isOpen),
+    visibleRect(preferencesPanel, preferencesPanel.open),
+    visibleRect(recoveryPanelElement, recoveryPanelElement.childElementCount > 0),
+    visibleRect(missionPanel, missionPanel.childElementCount > 0),
+  ].filter((rect): rect is DOMRectReadOnly => rect !== undefined);
+
+  return {
+    mode: scene.isDiving ? 'dive' : 'overview',
+    filterActive: activeQuery.trim().length > 0,
+    modalOpen: radar.isOpen,
+    blockedRects,
+  };
+}
+
 function syncInput() {
   scene.setInputBlocked(radar.isOpen || search.isOpen || detail.isOpen || preferencesPanel.open);
 }
@@ -268,7 +299,9 @@ let lastRadarRefresh = 0;
 function labelLoop(timestamp: number) {
   if (scene.isDiving) moveReticle(window.innerWidth/2,window.innerHeight/2);
   if (timestamp-lastRadarRefresh>100) {radar.refresh();renderRecovery();lastRadarRefresh=timestamp;}
-  labels.render(scene.getLabelTargets());
+  const context = labelContext();
+  labels.render(scene.getLabelTargets(), context);
+  labels.renderNamespaces(scene.getNamespaceLabelTargets(), context);
   requestAnimationFrame(labelLoop);
 }
 requestAnimationFrame(labelLoop);

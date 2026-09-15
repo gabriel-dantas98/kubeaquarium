@@ -80,7 +80,9 @@ function hash(s: string): number {
   return h >>> 0;
 }
 
-export interface BubbleUniforms { uVisibility: { value: number } }
+export interface BubbleUniforms extends Record<string, THREE.IUniform<number>> {
+  uVisibility: THREE.IUniform<number>;
+}
 
 /** Builds one subtle rim-lit namespace shell. Labels are rendered in the HUD. */
 export function buildBubble(layout: NamespaceLayout): THREE.Group {
