@@ -8,11 +8,13 @@ export interface RadarItem {
   status?: string;
   meta?: string;
   tokens: string[];
+  position: SpatialPoint | null;
 }
 
 export interface RadarHandlers {
   getItems: () => RadarItem[];
   onSelect: (item: RadarItem) => void;
+  getPose: () => RadarPose;
 }
 
 interface RankedItem {
@@ -91,15 +93,6 @@ function escapeHtml(value: string): string {
   })[ch]!);
 }
 
-function hash(value: string): number {
-  let h = 2166136261;
-  for (let i = 0; i < value.length; i++) {
-    h ^= value.charCodeAt(i);
-    h = Math.imul(h, 16777619);
-  }
-  return h >>> 0;
-}
-
 export class RadarHUD {
   private root = document.getElementById('radar') as HTMLDivElement;
   private input = document.getElementById('radar-input') as HTMLInputElement;
@@ -107,10 +100,13 @@ export class RadarHUD {
   private count = document.getElementById('radar-count') as HTMLSpanElement;
   private scope = document.getElementById('radar-scope') as HTMLDivElement;
   private empty = document.getElementById('radar-empty') as HTMLDivElement;
-  private isOpen = false;
+  private openState = false;
   private query = '';
   private activeIndex = 0;
   private visibleItems: RadarItem[] = [];
+  private range = 100;
+
+  get isOpen() { return this.openState; }
 
   constructor(private handlers: RadarHandlers) {
     window.addEventListener('keydown', e => this.onGlobalKey(e));
@@ -123,7 +119,7 @@ export class RadarHUD {
   }
 
   open() {
-    this.isOpen = true;
+    this.openState = true;
     this.query = '';
     this.activeIndex = 0;
     this.input.value = '';
@@ -133,14 +129,25 @@ export class RadarHUD {
   }
 
   close() {
-    this.isOpen = false;
+    this.openState = false;
     this.root.classList.add('hidden');
     this.input.blur();
   }
 
   toggle() {
-    if (this.isOpen) this.close();
+    if (this.openState) this.close();
     else this.open();
+  }
+
+  /** Refreshes live item positions without disturbing query or keyboard focus. */
+  refresh() {
+    if (!this.openState) return;
+    const activeId = this.visibleItems[this.activeIndex]?.id;
+    this.visibleItems = rankItems(this.handlers.getItems(), this.query);
+    const active = activeId ? this.visibleItems.findIndex(item => item.id === activeId) : -1;
+    this.activeIndex = active >= 0 ? active : Math.min(this.activeIndex, Math.max(0, this.visibleItems.length - 1));
+    this.renderResults();
+    this.renderScope();
   }
 
   private render() {
@@ -200,14 +207,18 @@ export class RadarHUD {
   }
 
   private renderScope() {
-    const blips = this.visibleItems.slice(0, 18).map((item, index) => {
-      const h = hash(item.id);
-      const angle = ((h % 360) / 180) * Math.PI;
-      const radius = 22 + ((h >>> 9) % 56);
-      const x = 50 + Math.cos(angle) * radius;
-      const y = 50 + Math.sin(angle) * radius;
+    const pose = this.handlers.getPose();
+    const blips = this.visibleItems.map((item, index) => {
+      if (!item.position) return '';
+      const p = projectRadar(item.position, pose, this.range);
+      const x = 50 + p.x * 44;
+      const y = 50 + p.y * 44;
       const active = index === this.activeIndex ? ' active' : '';
-      return `<span class="radar-blip${active}" style="left:${x.toFixed(1)}%;top:${y.toFixed(1)}%"></span>`;
+      const outside = p.outside ? ' outside' : '';
+      const altitude = p.altitude > 2 ? ' ↑' : p.altitude < -2 ? ' ↓' : '';
+      const distance = Math.hypot(item.position.x - pose.position.x, item.position.y - pose.position.y, item.position.z - pose.position.z);
+      const label = `${item.name}${altitude}${p.outside ? ` · ${Math.round(distance)} units` : ''}`;
+      return `<button type="button" class="radar-blip${active}${outside}" data-index="${index}" aria-label="${escapeHtml(label)}" style="left:${x.toFixed(1)}%;top:${y.toFixed(1)}%"></button>`;
     }).join('');
 
     this.scope.innerHTML = `
@@ -216,9 +227,16 @@ export class RadarHUD {
       <span class="radar-ring r3"></span>
       <span class="radar-cross x"></span>
       <span class="radar-cross y"></span>
-      <span class="radar-sweep"></span>
       ${blips}
+      <span class="radar-heading">Heading up · ${this.range} units</span>
     `;
+    this.scope.querySelectorAll<HTMLButtonElement>('.radar-blip').forEach(blip => blip.addEventListener('click', () => {
+      const index = Number(blip.dataset.index);
+      const item = this.visibleItems[index];
+      if (!item || !this.handlers.getItems().some(current => current.id === item.id)) return;
+      this.activeIndex = index;
+      this.selectActive();
+    }));
   }
 
   private move(delta: number) {
@@ -239,7 +257,7 @@ export class RadarHUD {
   private onGlobalKey(e: KeyboardEvent) {
     const wantsRadar = (e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k';
     if (!wantsRadar) return;
-    if (!this.isOpen && isEditing(e.target)) return;
+    if (!this.openState && isEditing(e.target)) return;
     e.preventDefault();
     this.toggle();
   }
@@ -260,3 +278,4 @@ export class RadarHUD {
     }
   }
 }
+import { projectRadar, type RadarPose, type SpatialPoint } from './radar-projection';

@@ -6,6 +6,12 @@ import { RadarHUD, type RadarItem } from './hud/radar';
 import { LabelLayer } from './hud/labels';
 import { DemoStream, demoContexts, isDemoMode } from './demo';
 import type { PodView, StreamEvent } from './types';
+import { RecoveryTracker } from './recovery';
+import { RecoveryPanel } from './recovery-panel';
+import { LivePodOperations, ApiDeleteError, type PodOperations } from './operations';
+import { DemoMission } from './demo-mission';
+import type { CameraPreferences } from './camera';
+
 
 const canvas = document.getElementById('scene') as HTMLCanvasElement;
 const scene = new AquariumScene(canvas);
@@ -23,9 +29,7 @@ const search = new SearchHUD({
     if (uid) {
       const p = store.pods.get(uid);
       if (p) {
-        scene.focusOnPod(uid);
-        scene.setFocused(uid);
-        detail.show(p);
+        showPod(uid);
       }
     }
   },
@@ -33,6 +37,7 @@ const search = new SearchHUD({
 
 const radar = new RadarHUD({
   getItems: listRadarItems,
+  getPose: () => scene.getRadarPose(),
   onSelect: selectRadarItem,
 });
 void radar;
@@ -44,6 +49,34 @@ let pendingEvents: StreamEvent[] = [];
 let flushScheduled = false;
 let attackMode = false;
 let lastAttackHitUid: string | null = null;
+let connected = false;
+let synchronized = false;
+let initialOverview = false;
+let mission: DemoMission | undefined;
+const inFlight = new Set<string>();
+const tracker = new RecoveryTracker(() => performance.now());
+const recoveryPanel = new RecoveryPanel(document.getElementById('recovery-panel')!, uid => showPod(uid), id => {
+  tracker.dismiss(id); renderRecovery();
+});
+let previousRecovery = '';
+function renderRecovery() {
+  const operations = tracker.operations;
+  const signature = JSON.stringify(operations.map(o => [o.id,o.phase,o.message,o.candidateUid]));
+  if (signature === previousRecovery) return;
+  previousRecovery = signature;
+  recoveryPanel.render(operations);
+  mission?.update(operations);
+}
+function showPod(uid: string, notifyMission = true) {
+  const pod = store.pods.get(uid);
+  if (!pod) return;
+  detail.show(pod);
+  scene.setFocused(uid);
+  scene.focusOnPod(uid);
+  if (notifyMission) mission?.selected(uid);
+  syncInput();
+}
+
 
 function applyFilter(filter: Filter, raw: string) {
   activeFilter = filter;
@@ -61,6 +94,7 @@ function podToRadarItem(p: PodView): RadarItem {
     namespace: p.namespace,
     status,
     meta: p.node,
+    position: scene.getPodPosition(p.uid),
     tokens: [
       'pod',
       p.name,
@@ -81,9 +115,7 @@ function selectRadarItem(item: RadarItem) {
   if (item.kind !== 'pod') return;
   const pod = store.pods.get(item.id);
   if (!pod) return;
-  scene.focusOnPod(item.id);
-  scene.setFocused(item.id);
-  detail.show(pod);
+  showPod(item.id);
 }
 
 function isEditing(target: EventTarget | null): boolean {
@@ -106,74 +138,45 @@ function setAttackMode(enabled: boolean) {
   attackToggle.title = enabled ? 'Disarm attack mode' : 'Arm attack mode';
 }
 
-const killFeed = document.getElementById('kill-feed') as HTMLDivElement;
-const KILL_FEED_MAX = 5;
-const KILL_FEED_TTL_MS = 4000;
-
-function pushKillFeed(namespace: string, name: string) {
-  const entry = document.createElement('div');
-  entry.className = 'kill-entry';
-  const icon = document.createElement('span');
-  icon.textContent = '🚀';
-  const target = document.createElement('span');
-  target.className = 'kill-target';
-  target.textContent = `${namespace}/${name}`;
-  const verb = document.createElement('span');
-  verb.className = 'kill-verb';
-  verb.textContent = 'eliminated';
-  entry.append(icon, target, verb);
-  killFeed.prepend(entry);
-  while (killFeed.children.length > KILL_FEED_MAX) killFeed.lastElementChild!.remove();
-  // CSS transitions can freeze under heavy WebGL load, so the fade-out is
-  // cosmetic only — removal is guaranteed by the timer.
-  window.setTimeout(() => entry.classList.add('leaving'), KILL_FEED_TTL_MS - 500);
-  window.setTimeout(() => entry.remove(), KILL_FEED_TTL_MS);
-}
-
 async function deletePodFromAttackHit(uid: string) {
-  if (!attackMode) return;
   const pod = store.pods.get(uid);
-  if (!pod) return;
-  const { namespace, name } = pod;
-  if (isDemoMode) {
-    // No real cluster/watcher in demo mode to confirm the deletion, so the
-    // hit itself is the confirmation.
-    store.apply({ type: 'deleted', uid });
-    scene.removePod(uid);
-    document.getElementById('pod-count')!.textContent = `${store.pods.size} pods`;
-    pushKillFeed(namespace, name);
-    return;
+  if (!pod || !connected || !synchronized || inFlight.has(uid)) {
+    scene.clearTargeted(uid); return;
   }
-  // Don't remove the pod from the scene yet — it only disappears once the
-  // watcher stream confirms it's actually gone from the cluster (see the
-  // 'deleted' event handling below). Until then it stays alive, wounded.
-  const url = `/api/pod/${encodeURIComponent(namespace)}/${encodeURIComponent(name)}`;
-  const res = await fetch(url, { method: 'DELETE' });
-  if (!res.ok) {
-    console.warn('[kubeaquarium] missile delete failed', namespace, name, await res.text());
+  if (tracker.operations.some(o => o.target.uid === uid && !['failed','ready','standalone'].includes(o.phase))) {
+    scene.clearTargeted(uid); return;
+  }
+  inFlight.add(uid);
+  const operation = tracker.begin(pod, store.pods.values());
+  renderRecovery();
+  try {
+    await operations.deletePod(pod);
+    tracker.accepted(operation.id);
+  } catch (error) {
+    tracker.failed(operation.id, error instanceof Error ? error.message : String(error), !(error instanceof ApiDeleteError));
     scene.clearTargeted(uid);
-    return;
+  } finally {
+    inFlight.delete(uid);
+    renderRecovery();
   }
-  pushKillFeed(namespace, name);
 }
 
 const stream = new (isDemoMode ? DemoStream : Stream)((ev) => {
   pendingEvents.push(ev);
   scheduleFlush();
 });
+const operations: PodOperations = stream instanceof DemoStream ? stream : new LivePodOperations();
 stream.onConnectionChange = (ok) => {
+  tracker.connection(ok);
+  if (!ok) synchronized = false;
+  renderRecovery();
   document.getElementById('ws-dot')?.classList.toggle('live', ok);
   connected = ok;
   updateEmptyState();
 };
 document.getElementById('ws-dot')!.classList.remove('live');
 
-scene.onSelect = (uid) => {
-  const p = store.pods.get(uid);
-  if (!p) return;
-  scene.setFocused(uid);
-  detail.show(p);
-};
+scene.onSelect = (uid) => showPod(uid);
 scene.onAttackHit = (uid) => {
   lastAttackHitUid = uid;
   void deletePodFromAttackHit(uid);
@@ -185,28 +188,87 @@ const origHide = detail.hide.bind(detail);
 detail.hide = () => {
   origHide();
   scene.setFocused(null);
+  syncInput();
 };
 
-// Esc closes detail (and releases the freeze) when not in dive/search.
+const preferencesPanel = document.getElementById('camera-settings') as HTMLDetailsElement;
+function syncInput() {
+  scene.setInputBlocked(radar.isOpen || search.isOpen || detail.isOpen || preferencesPanel.open);
+}
+const observer = new MutationObserver(syncInput);
+for (const id of ['radar','search','detail','camera-settings']) observer.observe(document.getElementById(id)!, {attributes:true,attributeFilter:['class','open']});
+function overview() {
+  radar.close(); search.close(); detail.hide(); preferencesPanel.open = false;
+  scene.showOverview(); syncInput();
+}
 window.addEventListener('keydown', (e) => {
-  if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'l' && !isEditing(e.target)) {
-    e.preventDefault();
-    setAttackMode(!attackMode);
-    return;
-  }
+  if (e.defaultPrevented) return;
   if (e.key === 'Escape') {
-    if (!document.getElementById('detail')?.classList.contains('hidden')) {
-      detail.hide();
-    }
+    e.preventDefault();
+    if (radar.isOpen) radar.close();
+    else if (search.isOpen) search.close();
+    else if (preferencesPanel.open) preferencesPanel.open = false;
+    else if (detail.isOpen) detail.hide();
+    else scene.exitDive();
+    syncInput(); return;
   }
+  if (isEditing(e.target) || e.repeat) return;
+  if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'l') {
+    e.preventDefault(); setAttackMode(!attackMode);
+  } else if (e.code === 'KeyO' && !e.metaKey && !e.ctrlKey) overview();
 });
+document.getElementById('overview-toggle')!.addEventListener('click', overview);
+document.getElementById('dive-toggle')!.addEventListener('click', () => {
+  radar.close(); search.close(); detail.hide(); preferencesPanel.open = false;
+  scene.toggleDive(); syncInput();
+});
+const motionMedia = matchMedia('(prefers-reduced-motion: reduce)');
+let manualMotion = false;
+let preferences: CameraPreferences = {lookSensitivity:1,invertY:false,reducedMotion:motionMedia.matches};
+try {
+  const saved = JSON.parse(localStorage.getItem('kubeaquarium.camera.v1') ?? 'null');
+  if (saved && typeof saved.lookSensitivity === 'number' && typeof saved.invertY === 'boolean' && typeof saved.reducedMotion === 'boolean') {
+    preferences = {...saved,lookSensitivity:Math.max(.25,Math.min(2,saved.lookSensitivity))}; manualMotion = true;
+  }
+} catch { /* Invalid stored settings use current defaults. */ }
+const sensitivity = document.getElementById('look-sensitivity') as HTMLInputElement;
+const invert = document.getElementById('invert-look') as HTMLInputElement;
+const reduced = document.getElementById('reduce-motion') as HTMLInputElement;
+function applyPreferences() {
+  sensitivity.value = String(preferences.lookSensitivity); invert.checked=preferences.invertY; reduced.checked=preferences.reducedMotion;
+  document.body.classList.toggle('reduced-motion',preferences.reducedMotion);
+  scene.setPreferences(preferences);
+}
+for (const input of [sensitivity,invert,reduced]) input.addEventListener('input',()=>{
+  preferences={lookSensitivity:Number(sensitivity.value),invertY:invert.checked,reducedMotion:reduced.checked};
+  manualMotion=true; applyPreferences();
+  try { localStorage.setItem('kubeaquarium.camera.v1',JSON.stringify(preferences)); } catch { /* Settings remain usable without storage. */ }
+});
+motionMedia.addEventListener('change',()=>{if (!manualMotion) {preferences.reducedMotion=motionMedia.matches;applyPreferences();}});
+applyPreferences();
+if (stream instanceof DemoStream) {
+  const demo = stream;
+  const root = document.getElementById('demo-mission')!;
+  mission = new DemoMission(uid => scene.focusOnPod(uid), uid => showPod(uid), () => {
+    for (const operation of tracker.operations) tracker.dismiss(operation.id);
+    detail.hide(); setAttackMode(false); demo.resetMission(); initialOverview=false;
+    previousRecovery=''; renderRecovery();
+  }, () => {
+    radar.close(); search.close(); detail.hide(); preferencesPanel.open=false;
+    syncInput(); scene.prepareDiveOnPod('demo-mission-old'); setAttackMode(true);
+  });
+  mission.mount(root);
+}
 
 scene.start();
 stream.start();
 
 // Animation loop for label layer (runs in sync with rAF naturally via the scene clock).
-function labelLoop() {
-  labels.render(scene.getLabelTargets() as any);
+let lastRadarRefresh = 0;
+function labelLoop(timestamp: number) {
+  if (scene.isDiving) moveReticle(window.innerWidth/2,window.innerHeight/2);
+  if (timestamp-lastRadarRefresh>100) {radar.refresh();renderRecovery();lastRadarRefresh=timestamp;}
+  labels.render(scene.getLabelTargets());
   requestAnimationFrame(labelLoop);
 }
 requestAnimationFrame(labelLoop);
@@ -218,7 +280,7 @@ const contextsPromise = isDemoMode
 contextsPromise.then((list: any[]) => {
   const cur = list.find(c => c.current);
   document.getElementById('ctx-name')!.textContent = cur ? cur.name : (list[0]?.name ?? '—');
-});
+}).catch(() => { document.getElementById('ctx-name')!.textContent = 'Context unavailable'; });
 
 function scheduleFlush() {
   if (flushScheduled) return;
@@ -237,7 +299,10 @@ function flushPendingEvents() {
   let namespaceLayoutDirty = false;
 
   for (const ev of events) {
+    tracker.observe(ev);
     if (ev.type === 'snapshot') {
+      scene.reconcilePods(new Set(ev.pods.map(p => p.uid)));
+      synchronized = true;
       store.apply(ev);
       namespaceCounts = countNamespaces(store.pods.values());
       needsFullReconcile = true;
@@ -297,6 +362,8 @@ function flushPendingEvents() {
   } else {
     search.setCount(0, store.pods.size, false);
   }
+  if (!initialOverview && store.pods.size) {scene.showOverview();initialOverview=true;}
+  renderRecovery();
   updateEmptyState();
 }
 
@@ -318,7 +385,6 @@ function decrementNamespace(namespace: string) {
   else namespaceCounts.delete(namespace);
 }
 
-let connected = false;
 function updateEmptyState() {
   const empty = document.getElementById('empty-state')!;
   const msg = document.getElementById('empty-msg')!;
@@ -350,12 +416,13 @@ function moveReticle(clientX: number, clientY: number) {
 
 moveReticle(window.innerWidth / 2, window.innerHeight / 2);
 window.addEventListener('pointermove', (e) => {
-  if (!scene.isDiving) return;
+  if (scene.isDiving) return;
   moveReticle(e.clientX, e.clientY);
 });
 window.addEventListener('pointerdown', (e) => {
   if (e.button !== 0 || !attackMode || !scene.isDiving || isInteractive(e.target)) return;
-  moveReticle(e.clientX, e.clientY);
+  if (!connected || !synchronized || radar.isOpen || search.isOpen || detail.isOpen || preferencesPanel.open) return;
+  moveReticle(window.innerWidth/2, window.innerHeight/2);
   e.preventDefault();
   e.stopPropagation();
   scene.fireAttack();
@@ -371,6 +438,8 @@ window.addEventListener('pointerdown', (e) => {
   get lastAttackHitUid() { return lastAttackHitUid; },
   submarineDebug() { return scene.getSubmarineDebug(); },
   slotsDebug() { return scene.getSlotsDebug(); },
+  navigationDebug() { return scene.getNavigationDebug(); },
+  frameMetrics() { return scene.getFrameMetrics(); },
   pause() { scene.paused = true; },
   resume() { scene.paused = false; },
 };

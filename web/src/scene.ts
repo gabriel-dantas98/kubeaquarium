@@ -2,12 +2,14 @@ import * as THREE from 'three';
 import Stats from 'stats.js';
 import type { PodView } from './types';
 import { buildWhaleGeometry, buildWhaleMaterial } from './whale';
-import { layoutNamespaces, buildBubble, placeInBubble, type NamespaceLayout } from './namespaces';
-import { HybridCamera } from './camera';
+import { layoutNamespaces, buildBubble, placeInBubble, type NamespaceLayout, type NamespaceLayoutState } from './namespaces';
+import { FrameMetrics } from './frame-metrics';
+import { HybridCamera, type CameraPreferences } from './camera';
 import { buildSubmarineCockpit } from './submarine';
 import type { Filter } from './hud/search';
 import { ALL } from './hud/search';
-import type { LabelTarget } from './hud/labels';
+import type { LabelTarget, NamespaceLabelTarget } from './hud/labels';
+import type { BubbleUniforms } from './namespaces';
 
 const MAX_INSTANCES = 20000;
 const BOIDS_INSTANCE_LIMIT = 1200;
@@ -108,6 +110,10 @@ export class AquariumScene {
   private nextIndex = 0;
 
   private bubbles = new Map<string, THREE.Group>();
+  private layoutState: NamespaceLayoutState = { allocations: new Map() };
+  private frameMetrics = new FrameMetrics();
+  private reducedMotion = false;
+  private overview = false;
   private layouts = new Map<string, NamespaceLayout>();
   private bubbleRoot = new THREE.Group();
 
@@ -135,6 +141,7 @@ export class AquariumScene {
 
   onSelect?: (uid: string) => void;
   onAttackHit?: (uid: string) => void;
+  onImpact?: () => void;
   fpsAvg = 60;
   paused = false;
   focusedUid: string | null = null;
@@ -143,6 +150,9 @@ export class AquariumScene {
 
   /** Reusable temp; populated each frame, then read by the labels layer. */
   private labelTargets: LabelTarget[] = [];
+  private namespaceLabelTargets: NamespaceLabelTarget[] = [];
+  private rankedLabelSlots: InstanceSlot[] = [];
+  private nextLabelRankAt = 0;
   private projVec = new THREE.Vector3();
 
   constructor(private canvas: HTMLCanvasElement) {
@@ -220,15 +230,15 @@ export class AquariumScene {
     this.fragmentMesh.frustumCulled = false;
     this.scene.add(this.fragmentMesh);
 
-    // Impact flash: additive sphere that expands and fades over ~200ms.
+    // Reusable billboard ring for a short, restrained impact cue.
     this.flashMat = new THREE.MeshBasicMaterial({
       color: 0xffc98a,
       transparent: true,
-      opacity: 0,
+      opacity: 0, side: THREE.DoubleSide,
       blending: THREE.AdditiveBlending,
       depthWrite: false,
     });
-    this.flashMesh = new THREE.Mesh(new THREE.SphereGeometry(1, 16, 12), this.flashMat);
+    this.flashMesh = new THREE.Mesh(new THREE.RingGeometry(.58, 1, 24), this.flashMat);
     this.flashMesh.visible = false;
     this.flashMesh.frustumCulled = false;
     this.scene.add(this.flashMesh);
@@ -260,6 +270,52 @@ export class AquariumScene {
 
   get isDiving(): boolean {
     return this.hybrid.mode === 'dive';
+  }
+
+  setInputBlocked(blocked: boolean) { this.hybrid.setInputBlocked(blocked); }
+  setPreferences(value: CameraPreferences) {
+    this.hybrid.setPreferences(value);
+    this.setReducedMotion(value.reducedMotion);
+  }
+  setReducedMotion(enabled: boolean) {
+    this.reducedMotion = enabled;
+    this.mat.uniforms.uReducedMotion.value = enabled ? 1 : 0;
+    if (enabled) { this.flashStart = -1; this.flashMesh.visible = false; this.flashMat.opacity = 0; this.submarineKick = 0; }
+  }
+  toggleDive() {
+    if (this.isDiving) this.hybrid.exitDive(); else this.hybrid.enterDive();
+  }
+  exitDive() { if (this.isDiving) this.hybrid.exitDive(); }
+  getNavigationDebug() {
+    return { mode: this.hybrid.mode, position: this.camera.position.toArray(),
+      direction: this.hybrid.direction.toArray(), blocked: this.hybrid.isInputBlocked };
+  }
+  getFrameMetrics() { return { ...this.frameMetrics.snapshot(), pixelRatio: this.pixelRatio,
+    drawCalls: this.renderer.info.render.calls, geometries: this.renderer.info.memory.geometries,
+    textures: this.renderer.info.memory.textures }; }
+  getPodPosition(uid: string) {
+    const slot = this.slots.get(uid);
+    return slot && slot.removingAt === undefined ? {x:slot.pos.x,y:slot.pos.y,z:slot.pos.z} : null;
+  }
+  getRadarPose() {
+    const forward = this.hybrid.direction;
+    return {position:{x:this.camera.position.x,y:this.camera.position.y,z:this.camera.position.z},
+      forward:{x:forward.x,y:forward.y,z:forward.z}};
+  }
+  showOverview() {
+    const bounds = new THREE.Box3();
+    for (const layout of this.layouts.values()) {
+      const extent = new THREE.Vector3().setScalar(layout.radius);
+      bounds.expandByPoint(layout.center.clone().sub(extent));
+      bounds.expandByPoint(layout.center.clone().add(extent));
+    }
+    if (bounds.isEmpty()) bounds.set(new THREE.Vector3(-10,-10,-10),new THREE.Vector3(10,10,10));
+    this.setFocused(null);
+    this.hybrid.frameBounds(bounds);
+    this.overview = true;
+  }
+  reconcilePods(uids: ReadonlySet<string>) {
+    for (const uid of this.slots.keys()) if (!uids.has(uid)) this.removePod(uid);
   }
 
   get projectileCount(): number {
@@ -314,10 +370,22 @@ export class AquariumScene {
     this.camera.updateProjectionMatrix();
   }
 
+  private updateBubbleVisibility() {
+    for (const [name, group] of this.bubbles) {
+      const layout = this.layouts.get(name); if (!layout) continue;
+      const distance = this.camera.position.distanceTo(layout.center);
+      const inside = THREE.MathUtils.clamp((distance - (layout.radius - 1)) / 2, 0, 1);
+      const visibility = THREE.MathUtils.lerp(.15, 1, inside);
+      const shell = group.children[0] as THREE.Mesh<THREE.BufferGeometry, THREE.ShaderMaterial>;
+      const uniforms = shell.userData.bubbleUniforms as BubbleUniforms | undefined;
+      if (uniforms) uniforms.uVisibility.value = visibility;
+    }
+  }
+
   rebuildNamespaceBubbles(podsByNs: Map<string, number>) {
     const names = [...podsByNs.keys()];
     const previousLayouts = this.layouts;
-    const layouts = layoutNamespaces(names, podsByNs);
+    const layouts = layoutNamespaces(names, podsByNs, this.layoutState);
     this.layouts = layouts;
 
     for (const [name, group] of this.bubbles) {
@@ -395,8 +463,10 @@ export class AquariumScene {
     }
 
     this.writeRenderColor(slot);
+    this.writeInstanceState(slot);
     this.mesh.count = Math.max(this.mesh.count, slot.index + 1);
     (this.mesh.geometry.getAttribute('instanceColor') as THREE.InstancedBufferAttribute).needsUpdate = true;
+    (this.mesh.geometry.getAttribute('instanceState') as THREE.InstancedBufferAttribute).needsUpdate = true;
   }
 
   /** Called by main.ts when the filter changes. */
@@ -575,6 +645,12 @@ export class AquariumScene {
     attr.needsUpdate = true;
   }
 
+  private writeInstanceState(slot: InstanceSlot) {
+    const status = statusForSlot(slot);
+    const value = status.statusClass === 'err' ? 2 : status.status === 'Completed' ? 3 : status.statusClass === 'warn' ? 1 : 0;
+    (this.mesh.geometry.getAttribute('instanceState') as THREE.InstancedBufferAttribute).setX(slot.index, value);
+  }
+
   /**
    * Compose the render color from baseColor + filter dim + focused brighten.
    * Sentinel (-1, -1, -1) keeps "hidden" semantics for freed slots.
@@ -626,6 +702,8 @@ export class AquariumScene {
     this.writeColor(slot.index, COLORS.hidden);
     this.dummyMatrix.makeScale(0, 0, 0);
     this.mesh.setMatrixAt(slot.index, this.dummyMatrix);
+    (this.mesh.geometry.getAttribute('instanceState') as THREE.InstancedBufferAttribute).setX(slot.index, 3);
+    (this.mesh.geometry.getAttribute('instanceState') as THREE.InstancedBufferAttribute).needsUpdate = true;
     this.mesh.instanceMatrix.needsUpdate = true;
     this.freeIndices.push(slot.index);
     this.removeFromBubble(slot.namespace, slot.uid);
@@ -643,9 +721,9 @@ export class AquariumScene {
     targets.length = 0;
     const w = window.innerWidth, h = window.innerHeight;
     const camPos = this.camera.position;
-    // Iterate slots; quick distance filter, then NDC project.
-    let pushed = 0;
-    for (const slot of this.slots.values()) {
+    const now=performance.now();
+    if(now>=this.nextLabelRankAt){this.nextLabelRankAt=now+100;this.rankedLabelSlots=[...this.slots.values()].filter(s=>s.removingAt===undefined).sort((a,b)=>Number(b.uid===this.focusedUid)-Number(a.uid===this.focusedUid)||Number(this.filterActive&&b.matched)-Number(this.filterActive&&a.matched)||a.pos.distanceToSquared(camPos)-b.pos.distanceToSquared(camPos)||a.uid.localeCompare(b.uid)).slice(0,LIMIT)}
+    for (const slot of this.rankedLabelSlots) {
       if (slot.removingAt !== undefined) continue;
       // Skip very-far whales unless they are matched/focused.
       const dx = slot.pos.x - camPos.x;
@@ -672,23 +750,42 @@ export class AquariumScene {
         matched: this.filterActive ? slot.matched : false,
         focused: slot.uid === this.focusedUid,
       });
-      if (++pushed >= LIMIT) break;
     }
+    this.computeNamespaceLabelTargets();
+  }
+
+  private computeNamespaceLabelTargets() {
+    const targets=this.namespaceLabelTargets;targets.length=0;const w=innerWidth,h=innerHeight;
+    for(const [namespace,layout] of this.layouts){let total=0,unhealthy=0;for(const uid of this.bubbleMembers.get(namespace)??[]){const slot=this.slots.get(uid);if(!slot||slot.removingAt!==undefined)continue;total++;if(statusForSlot(slot).statusClass==='err')unhealthy++}if(!total)continue;this.projVec.copy(layout.center).add(new THREE.Vector3(0,layout.radius+.6,0)).project(this.camera);if(this.projVec.z < -1||this.projVec.z>1)continue;const x=(this.projVec.x*.5+.5)*w,y=(-this.projVec.y*.5+.5)*h;if(x<0||x>w||y<0||y>h)continue;targets.push({namespace,total,unhealthy,x,y,depth:layout.center.distanceToSquared(this.camera.position)})}
   }
 
   /** Read-only access to the latest labels for rendering by the LabelLayer. */
   getLabelTargets(): readonly LabelTarget[] { return this.labelTargets; }
+  getNamespaceLabelTargets(): readonly NamespaceLabelTarget[] { return this.namespaceLabelTargets; }
 
-  focusOnPod(uid: string) {
+  focusOnPod(uid: string, onDone?: () => void) {
     const slot = this.slots.get(uid);
     if (!slot) return;
+    this.overview = false;
     const target = slot.pos.clone();
-    const offset = new THREE.Vector3(0, 1.6, 5.5);
+    const panel = document.getElementById('detail');
+    const panelWidth = panel && !panel.classList.contains('hidden') ? panel.getBoundingClientRect().width : 0;
+    const usefulWidth = Math.max(window.innerWidth * .35, window.innerWidth-panelWidth-32);
+    const vFov = THREE.MathUtils.degToRad(this.camera.fov);
+    const hFov = 2 * Math.atan(Math.tan(vFov/2) * usefulWidth/window.innerHeight);
+    const radius = slot.baseScale * 1.72;
+    const distance = radius / Math.sin(Math.min(vFov,hFov)/2) * 1.35;
+    const panelShift = panelWidth > 0 ? Math.min(usefulWidth*.18, panelWidth*.22) : 0;
+    const worldRight = new THREE.Vector3(1,0,0).applyQuaternion(this.camera.quaternion);
+    const offset = new THREE.Vector3(0, distance*.16, distance).addScaledVector(worldRight,-panelShift/window.innerWidth*distance);
     const from = target.clone().add(offset);
-    this.hybrid.focusOn(target, from);
+    this.hybrid.focusOn(target, from, .9, onDone);
   }
 
+  prepareDiveOnPod(uid:string){this.setFocused(uid);this.focusOnPod(uid,()=>this.hybrid.enterDive())}
+
   private onCanvasClick(e: MouseEvent) {
+    if (this.hybrid.consumeDragClick() || this.hybrid.isInputBlocked) return;
     const divePick = this.hybrid.mode === 'dive';
     if (divePick && this.attackMode) {
       return;
@@ -1276,7 +1373,9 @@ export class AquariumScene {
   // ----------------------- Render -----------------------
 
   start() {
-    const loop = () => {
+    const loop = (timestamp: number) => {
+      if (document.hidden || this.paused) this.frameMetrics.reset();
+      else this.frameMetrics.record(timestamp);
       if (this.paused) {
         // Idle: don't draw or simulate. Frees the main thread for things like
         // CDP captureScreenshot which otherwise compete with rAF.

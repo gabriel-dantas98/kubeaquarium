@@ -63,6 +63,8 @@ export class DetailPanel {
     this.currentPod = undefined;
   }
 
+  get isOpen() { return this.currentUid !== undefined; }
+
   isOpenFor(uid: string) { return this.currentUid === uid; }
 
   private setExpanded(expanded: boolean) {

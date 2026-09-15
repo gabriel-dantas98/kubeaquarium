@@ -6,7 +6,6 @@ import (
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/client-go/informers"
@@ -15,17 +14,26 @@ import (
 )
 
 type PodView struct {
-	UID          string `json:"uid"`
-	Name         string `json:"name"`
-	Namespace    string `json:"namespace"`
-	Node         string `json:"node"`
-	Phase        string `json:"phase"`
-	Ready        bool   `json:"ready"`
-	RestartCount int32  `json:"restartCount"`
-	Reason       string `json:"reason"`
-	CPUMillis    int64  `json:"cpuMillis"`
-	MemMiB       int64  `json:"memMib"`
-	CreatedAt    string `json:"createdAt"`
+	UID               string          `json:"uid"`
+	Name              string          `json:"name"`
+	Namespace         string          `json:"namespace"`
+	Node              string          `json:"node"`
+	Phase             string          `json:"phase"`
+	Ready             bool            `json:"ready"`
+	RestartCount      int32           `json:"restartCount"`
+	Reason            string          `json:"reason"`
+	CPUMillis         int64           `json:"cpuMillis"`
+	MemMiB            int64           `json:"memMib"`
+	CreatedAt         string          `json:"createdAt"`
+	Controller        *ControllerView `json:"controller"`
+	DeletionTimestamp string          `json:"deletionTimestamp"`
+}
+
+type ControllerView struct {
+	APIVersion string `json:"apiVersion"`
+	Kind       string `json:"kind"`
+	Name       string `json:"name"`
+	UID        string `json:"uid"`
 }
 
 type Event struct {
@@ -132,19 +140,19 @@ func (w *Watcher) addPodEventHandler(podInformer cache.SharedIndexInformer) erro
 	return err
 }
 
-func (w *Watcher) Snapshot() []PodView {
-	var out []PodView
+func (w *Watcher) Snapshot() ([]PodView, error) {
+	out := make([]PodView, 0)
 	for _, factory := range w.factories {
 		lister := factory.Core().V1().Pods().Lister()
 		pods, err := lister.List(labels.Everything())
 		if err != nil {
-			return nil
+			return nil, err
 		}
 		for _, p := range pods {
 			out = append(out, toView(p))
 		}
 	}
-	return out
+	return out, nil
 }
 
 func (w *Watcher) Stop() {
@@ -196,12 +204,15 @@ func toView(p *corev1.Pod) PodView {
 	}
 
 	ready := false
+	for _, condition := range p.Status.Conditions {
+		if condition.Type == corev1.PodReady {
+			ready = condition.Status == corev1.ConditionTrue
+			break
+		}
+	}
 	var restarts int32
 	reason := ""
 	for _, cs := range p.Status.ContainerStatuses {
-		if cs.Ready {
-			ready = true
-		}
 		restarts += cs.RestartCount
 		if cs.State.Waiting != nil && cs.State.Waiting.Reason != "" {
 			reason = cs.State.Waiting.Reason
@@ -218,21 +229,30 @@ func toView(p *corev1.Pod) PodView {
 
 	createdAt := ""
 	if !p.CreationTimestamp.IsZero() {
-		createdAt = p.CreationTimestamp.UTC().Format(time.RFC3339)
+		createdAt = p.CreationTimestamp.UTC().Format(time.RFC3339Nano)
 	}
-	_ = resource.MustParse // ensure import is used
+	var controller *ControllerView
+	if owner := metav1.GetControllerOf(p); owner != nil {
+		controller = &ControllerView{APIVersion: owner.APIVersion, Kind: owner.Kind, Name: owner.Name, UID: string(owner.UID)}
+	}
+	deletionTimestamp := ""
+	if p.DeletionTimestamp != nil {
+		deletionTimestamp = p.DeletionTimestamp.UTC().Format(time.RFC3339Nano)
+	}
 
 	return PodView{
-		UID:          string(p.UID),
-		Name:         p.Name,
-		Namespace:    p.Namespace,
-		Node:         p.Spec.NodeName,
-		Phase:        phase,
-		Ready:        ready,
-		RestartCount: restarts,
-		Reason:       reason,
-		CPUMillis:    cpu,
-		MemMiB:       mem,
-		CreatedAt:    createdAt,
+		UID:               string(p.UID),
+		Name:              p.Name,
+		Namespace:         p.Namespace,
+		Node:              p.Spec.NodeName,
+		Phase:             phase,
+		Ready:             ready,
+		RestartCount:      restarts,
+		Reason:            reason,
+		CPUMillis:         cpu,
+		MemMiB:            mem,
+		CreatedAt:         createdAt,
+		Controller:        controller,
+		DeletionTimestamp: deletionTimestamp,
 	}
 }

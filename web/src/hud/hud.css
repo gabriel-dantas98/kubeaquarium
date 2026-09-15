@@ -704,3 +704,33 @@ body.attack .crosshair {
     text-align: center;
   }
 }
+
+/* The world layer never overlays interactive HUD surfaces. */
+#labels { z-index: 1; pointer-events: none; }
+.topbar, .hint { position: relative; z-index: 3; }
+.radar, .detail, .search { z-index: 5; }
+.navigation { display: flex; align-items: center; gap: 8px; }
+.navigation button, .navigation summary, #recovery-panel button, #demo-mission button {
+  font: inherit; color: var(--text); background: #0b2540; border: 1px solid var(--panel-border);
+  border-radius: 6px; padding: 6px 10px; cursor: pointer;
+}
+.navigation summary { list-style: none; }
+#camera-settings { position: relative; }
+.settings-panel { position: absolute; top: 38px; left: 0; width: 230px; padding: 16px; display: grid; gap: 14px; background: #071628; border: 1px solid var(--panel-border); border-radius: 10px; }
+.settings-panel label { display: block; }
+.settings-panel input[type=range] { width: 100%; }
+#recovery-panel { position: absolute; z-index: 4; right: 16px; top: 64px; width: 310px; max-height: 38vh; overflow: auto; }
+#recovery-panel:empty, #demo-mission:empty { display: none; }
+#recovery-panel article { padding: 12px; margin-bottom: 8px; background: #071628f5; border: 1px solid var(--panel-border); border-left: 3px solid var(--accent); border-radius: 8px; }
+#recovery-panel strong { display: block; overflow: hidden; text-overflow: ellipsis; }
+#recovery-panel p { line-height: 1.5; color: var(--text-dim); }
+#recovery-panel article[data-operation-phase=ready] { border-left-color: var(--ok); }
+#recovery-panel article[data-operation-phase=failed] { border-left-color: var(--err); }
+#demo-mission { position: absolute; z-index: 4; left: 16px; bottom: 78px; padding: 16px; width: 290px; background: #071628ed; border: 1px solid var(--panel-border); border-radius: 10px; }
+#demo-mission strong { color: var(--accent-soft); font-size: 11px; letter-spacing: .05em; }
+#demo-mission p { font-size: 16px; }
+#demo-mission button { margin: 3px; }
+body.reduced-motion *, body.reduced-motion *::before, body.reduced-motion *::after { animation: none !important; transition: none !important; }
+@media (max-width: 900px) { .topbar { flex-wrap: wrap; gap: 10px; } .navigation { order: 3; } .meta { gap: 8px; } #recovery-panel { top: 100px; width: 260px; } #demo-mission { width: 250px; bottom: 100px; } }
+#hud > #attack-frame { pointer-events: none; }
+.hint { position: absolute; }

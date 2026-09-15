@@ -90,19 +90,24 @@ export function buildWhaleMaterial(): THREE.ShaderMaterial {
       uTime: { value: 0 },
       uLight: { value: new THREE.Vector3(0.3, 1.0, 0.5).normalize() },
       uAmbient: { value: 0.45 },
+      uReducedMotion: { value: 0 },
     },
     vertexColors: false,
     transparent: true,
     vertexShader: /* glsl */ `
       attribute vec3 instanceColor;
+      attribute float instanceState;
       varying vec3 vNormal;
       varying vec3 vColor;
       varying float vAlpha;
+      varying float vState;
 
       uniform float uTime;
+      uniform float uReducedMotion;
 
       void main() {
         vColor = instanceColor;
+        vState = instanceState;
 
         // The instanceMatrix already contains per-instance scale, rotation, position.
         // We can't easily recover scale from it cheaply; just use the largest column length.
@@ -113,7 +118,10 @@ export function buildWhaleMaterial(): THREE.ShaderMaterial {
         // Tail wave: stronger as x decreases (toward the tail)
         vec3 p = position;
         float tailFactor = clamp(-p.x + 0.5, 0.0, 1.6); // 0 at head, ~1.6 at tail tip
-        float wave = sin(uTime * 3.0 + phase) * 0.08 * tailFactor * tailFactor;
+        float speed = instanceState == 1.0 ? 0.45 : (instanceState == 3.0 ? 0.0 : 1.0);
+        float motion = 1.0 - uReducedMotion;
+        float wave = sin(uTime * 3.0 * speed + phase) * 0.08 * tailFactor * tailFactor * motion * min(speed, 1.0);
+        if (instanceState == 1.0) p.y += sin(uTime * 1.1 + phase) * 0.025 * motion;
         p.y += wave * 0.3;
         p.z += wave;
 
@@ -137,6 +145,9 @@ export function buildWhaleMaterial(): THREE.ShaderMaterial {
       varying vec3 vNormal;
       varying vec3 vColor;
       varying float vAlpha;
+      varying float vState;
+      uniform float uTime;
+      uniform float uReducedMotion;
       uniform vec3 uLight;
       uniform float uAmbient;
 
@@ -146,7 +157,8 @@ export function buildWhaleMaterial(): THREE.ShaderMaterial {
         vec3 base = vColor;
         // Subtle rim light for depth
         float rim = pow(1.0 - max(0.0, vNormal.z), 2.0) * 0.25;
-        vec3 col = base * (uAmbient + ndl * 0.7) + rim * vec3(0.5, 0.8, 1.0);
+        float unhealthyPulse = vState == 2.0 ? (0.04 + 0.04 * sin(uTime * 5.2)) * (1.0 - uReducedMotion) : 0.0;
+        vec3 col = base * (uAmbient + ndl * 0.7 + unhealthyPulse) + rim * vec3(0.5, 0.8, 1.0);
         gl_FragColor = vec4(col, vAlpha);
       }
     `,

@@ -9,6 +9,7 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes"
 	"sigs.k8s.io/yaml"
 )
@@ -27,16 +28,17 @@ func PodYAML(ctx context.Context, cs kubernetes.Interface, ns, name string) ([]b
 
 // DeletePod deletes a pod in the target namespace. The watcher stream will
 // publish the deletion once Kubernetes confirms it.
-func DeletePod(ctx context.Context, cs kubernetes.Interface, ns, name string) error {
-	return cs.CoreV1().Pods(ns).Delete(ctx, name, metav1.DeleteOptions{})
+func DeletePod(ctx context.Context, cs kubernetes.Interface, ns, name, uid string) error {
+	id := types.UID(uid)
+	return cs.CoreV1().Pods(ns).Delete(ctx, name, metav1.DeleteOptions{Preconditions: &metav1.Preconditions{UID: &id}})
 }
 
 type PodEvent struct {
 	LastSeen string `json:"lastSeen"`
-	Type     string `json:"type"`     // Normal | Warning
+	Type     string `json:"type"` // Normal | Warning
 	Reason   string `json:"reason"`
 	Message  string `json:"message"`
-	Source   string `json:"source"`   // component
+	Source   string `json:"source"` // component
 	Count    int32  `json:"count"`
 }
 

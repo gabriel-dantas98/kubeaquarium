@@ -1,3 +1,6 @@
+export interface ControllerView { apiVersion: string; kind: string; name: string; uid: string }
+export interface DeleteAccepted { accepted: true; uid: string }
+
 export interface PodView {
   uid: string;
   name: string;
@@ -10,6 +13,8 @@ export interface PodView {
   cpuMillis: number;
   memMib: number;
   createdAt: string;
+  controller: ControllerView | null;
+  deletionTimestamp: string;
 }
 
 export type StreamEvent =

@@ -90,7 +90,7 @@ export class SearchHUD {
   private root = document.getElementById('search') as HTMLDivElement;
   private input = document.getElementById('search-input') as HTMLInputElement;
   private count = document.getElementById('search-count') as HTMLSpanElement;
-  private isOpen = false;
+  isOpen = false;
 
   constructor(private handlers: SearchHandlers) {
     window.addEventListener('keydown', (e) => this.onKey(e));
@@ -100,6 +100,7 @@ export class SearchHUD {
     });
     this.input.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') {
+        e.stopPropagation();
         e.preventDefault();
         this.close();
       } else if (e.key === 'Enter') {

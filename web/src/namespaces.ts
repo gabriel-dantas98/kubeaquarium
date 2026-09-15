@@ -4,9 +4,14 @@ export interface NamespaceLayout {
   name: string;
   center: THREE.Vector3;
   radius: number; // bubble radius
+  capacityRadius: number;
+  dense: boolean;
+  podCount: number;
 }
 
-const MIN_NAMESPACE_GAP = 18;
+export interface NamespaceAllocation { center: THREE.Vector3; initialRadius: number; reservedRadius: number }
+export interface NamespaceLayoutState { allocations: Map<string, NamespaceAllocation> }
+
 const VERT_JITTER = 6;
 const MAX_BUBBLE_RADIUS = 42;
 
@@ -15,32 +20,53 @@ const MAX_BUBBLE_RADIUS = 42;
  * around the origin. Deterministic by name so the same cluster always
  * lays out the same way across reloads.
  */
-export function layoutNamespaces(names: string[], counts: Map<string, number>): Map<string, NamespaceLayout> {
-  const sorted = [...names].sort((a, b) => {
-    const bySize = (counts.get(b) ?? 0) - (counts.get(a) ?? 0);
-    return bySize || a.localeCompare(b);
-  });
+export function layoutNamespaces(names: string[], counts: Map<string, number>, state: NamespaceLayoutState): Map<string, NamespaceLayout> {
+  const sorted = [...new Set(names)].sort((a, b) => a.localeCompare(b));
   const out = new Map<string, NamespaceLayout>();
-  const golden = Math.PI * (3 - Math.sqrt(5));
-  const radii = new Map(sorted.map(name => [name, radiusForCount(counts.get(name) ?? 1)]));
-  const avgRadius = sorted.reduce((sum, name) => sum + radii.get(name)!, 0) / Math.max(1, sorted.length);
-  const ringStep = Math.max(MIN_NAMESPACE_GAP, avgRadius * 2.25);
-
-  for (let i = 0; i < sorted.length; i++) {
-    const name = sorted[i];
-    const angle = i * golden;
-    const radial = i === 0 ? 0 : ringStep * Math.sqrt(i);
-    const x = Math.cos(angle) * radial;
-    const z = Math.sin(angle) * radial;
-    // Vertical jitter from a hash of name for variety
-    const y = (hash(name) % 1000) / 1000 * VERT_JITTER - VERT_JITTER / 2;
-    const radius = radii.get(name)!;
-    out.set(name, { name, center: new THREE.Vector3(x, y, z), radius });
+  const current = new Map(sorted.map(name => [name, radiusForCount(counts.get(name) ?? 1)]));
+  for (const name of sorted) {
+    if (state.allocations.has(name)) continue;
+    const initialRadius = current.get(name)!;
+    const center = findCenter(name, initialRadius, state.allocations);
+    state.allocations.set(name, { center, initialRadius, reservedRadius: initialRadius });
+  }
+  // Capacity is derived from one immutable reservation snapshot.
+  const reservations = [...state.allocations.entries()].map(([name, a]) => [name, { ...a, center: a.center.clone() }] as const);
+  for (const name of sorted) {
+    const allocation = state.allocations.get(name)!;
+    let capacityRadius = MAX_BUBBLE_RADIUS;
+    for (const [otherName, other] of reservations) {
+      if (otherName === name) continue;
+      const distance = Math.hypot(allocation.center.x - other.center.x, allocation.center.z - other.center.z);
+      const slack = distance - allocation.reservedRadius - other.reservedRadius - 4;
+      capacityRadius = Math.min(capacityRadius, allocation.reservedRadius + Math.max(0, slack) / 2);
+    }
+    const wanted = current.get(name)!;
+    const radius = Math.min(wanted, capacityRadius);
+    allocation.reservedRadius = Math.max(allocation.reservedRadius, radius);
+    out.set(name, { name, center: allocation.center.clone(), radius, capacityRadius, dense: wanted > capacityRadius, podCount: counts.get(name) ?? 0 });
   }
   return out;
 }
 
-function radiusForCount(podCount: number): number {
+function findCenter(name: string, radius: number, allocations: Map<string, NamespaceAllocation>): THREE.Vector3 {
+  const y = (hash(name) % 1000) / 1000 * VERT_JITTER - VERT_JITTER / 2;
+  if (allocations.size === 0) return new THREE.Vector3(0, y, 0);
+  for (let ring = 2; ; ring += 2) {
+    const samples = Math.ceil(2 * Math.PI * ring / 2);
+    for (let i = 0; i < samples; i++) {
+      const angle = i * Math.PI * 2 / samples;
+      const x = Math.cos(angle) * ring, z = Math.sin(angle) * ring;
+      const valid = [...allocations.values()].every(other => {
+        const distance = Math.hypot(x - other.center.x, z - other.center.z);
+        return distance >= Math.max(radius + other.initialRadius + 16, radius + other.reservedRadius + 10);
+      });
+      if (valid) return new THREE.Vector3(x, y, z);
+    }
+  }
+}
+
+export function radiusForCount(podCount: number): number {
   const size = Math.max(1, podCount);
   return THREE.MathUtils.clamp(4 + Math.cbrt(size) * 2.65, 5, MAX_BUBBLE_RADIUS);
 }
@@ -54,85 +80,47 @@ function hash(s: string): number {
   return h >>> 0;
 }
 
-/**
- * Builds the visual mesh for a namespace bubble: translucent sphere + label sprite.
- */
+export interface BubbleUniforms { uVisibility: { value: number } }
+
+/** Builds one subtle rim-lit namespace shell. Labels are rendered in the HUD. */
 export function buildBubble(layout: NamespaceLayout): THREE.Group {
   const group = new THREE.Group();
   group.position.copy(layout.center);
   group.userData.namespace = layout.name;
 
-  const sphere = new THREE.Mesh(
+  const uniforms: BubbleUniforms = { uVisibility: { value: 1 } };
+  const shell = new THREE.Mesh(
     new THREE.SphereGeometry(layout.radius, 32, 24),
-    new THREE.MeshBasicMaterial({
-      color: 0x6ec3f4,
+    new THREE.ShaderMaterial({
       transparent: true,
-      opacity: 0.07,
-      side: THREE.BackSide,
       depthWrite: false,
-    })
+      side: THREE.DoubleSide,
+      uniforms,
+      vertexShader: `
+        varying vec3 vViewPosition;
+        varying vec3 vNormal;
+        void main() {
+          vViewPosition = (modelViewMatrix * vec4(position, 1.0)).xyz;
+          vNormal = normalMatrix * normal;
+          gl_Position = projectionMatrix * vec4(vViewPosition, 1.0);
+        }
+      `,
+      fragmentShader: `
+        varying vec3 vViewPosition;
+        varying vec3 vNormal;
+        uniform float uVisibility;
+        void main() {
+          float rim = pow(1.0 - abs(dot(normalize(vNormal), normalize(-vViewPosition))), 3.0);
+          float alpha = mix(0.012, 0.20, rim) * uVisibility;
+          gl_FragColor = vec4(vec3(0.43, 0.76, 0.96), alpha);
+        }
+      `,
+    }),
   );
-  group.add(sphere);
-
-  // Outer ring/edge
-  const edge = new THREE.Mesh(
-    new THREE.SphereGeometry(layout.radius, 32, 24),
-    new THREE.MeshBasicMaterial({
-      color: 0x6ec3f4,
-      transparent: true,
-      opacity: 0.16,
-      wireframe: true,
-      depthWrite: false,
-    })
-  );
-  group.add(edge);
-
-  // Label
-  const label = makeLabelSprite(layout.name);
-  label.position.set(0, layout.radius + 1.2, 0);
-  group.add(label);
+  shell.userData.bubbleUniforms = uniforms;
+  group.add(shell);
 
   return group;
-}
-
-function makeLabelSprite(text: string): THREE.Sprite {
-  const canvas = document.createElement('canvas');
-  const dpr = Math.min(2, window.devicePixelRatio || 1);
-  const ctx = canvas.getContext('2d')!;
-  const fontPx = 64;
-  ctx.font = `600 ${fontPx}px ui-sans-serif, system-ui, sans-serif`;
-  const metrics = ctx.measureText(text);
-  const padX = 24, padY = 14;
-  canvas.width = (metrics.width + padX * 2) * dpr;
-  canvas.height = (fontPx + padY * 2) * dpr;
-  ctx.scale(dpr, dpr);
-  ctx.font = `600 ${fontPx}px ui-sans-serif, system-ui, sans-serif`;
-  ctx.fillStyle = 'rgba(7, 22, 40, 0.7)';
-  roundRect(ctx, 0, 0, metrics.width + padX * 2, fontPx + padY * 2, 14);
-  ctx.fill();
-  ctx.fillStyle = '#cfe9ff';
-  ctx.textBaseline = 'top';
-  ctx.fillText(text, padX, padY);
-
-  const tex = new THREE.CanvasTexture(canvas);
-  tex.minFilter = THREE.LinearFilter;
-  tex.magFilter = THREE.LinearFilter;
-  const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false });
-  const sprite = new THREE.Sprite(mat);
-  const aspect = canvas.width / canvas.height;
-  const h = 1.6;
-  sprite.scale.set(h * aspect, h, 1);
-  return sprite;
-}
-
-function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
-  ctx.beginPath();
-  ctx.moveTo(x + r, y);
-  ctx.arcTo(x + w, y, x + w, y + h, r);
-  ctx.arcTo(x + w, y + h, x, y + h, r);
-  ctx.arcTo(x, y + h, x, y, r);
-  ctx.arcTo(x, y, x + w, y, r);
-  ctx.closePath();
 }
 
 /**

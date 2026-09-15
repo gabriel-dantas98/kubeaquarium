@@ -58,7 +58,10 @@ func TestWatcherSnapshotAppliesNamespaceAndLabelSelector(t *testing.T) {
 	}
 	defer watcher.Stop()
 
-	snapshot := watcher.Snapshot()
+	snapshot, err := watcher.Snapshot()
+	if err != nil {
+		t.Fatalf("snapshot: %v", err)
+	}
 	if len(snapshot) != 1 {
 		t.Fatalf("snapshot length = %d, want 1: %#v", len(snapshot), snapshot)
 	}
