@@ -31,6 +31,67 @@ func TestSnapshotFailureReturnsServiceUnavailable(t *testing.T) {
 	}
 }
 
+func TestServeStreamClosesWebSocketWhenInitialSnapshotFails(t *testing.T) {
+	cs := fake.NewSimpleClientset()
+	s := New("", nil, k8s.NewWatcher(cs), cs, nil)
+	s.snapshot = func() ([]k8s.PodView, error) { return nil, errors.New("cache unavailable") }
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		conn, err := upgrader.Upgrade(w, r, nil)
+		if err != nil {
+			t.Errorf("upgrade: %v", err)
+			return
+		}
+		defer conn.Close()
+		s.serveStream(conn, make(chan []byte), time.Hour)
+	}))
+	defer server.Close()
+	ws, _, err := websocket.DefaultDialer.Dial("ws"+strings.TrimPrefix(server.URL, "http"), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ws.Close()
+	ws.SetReadDeadline(time.Now().Add(time.Second))
+	if _, _, err := ws.ReadMessage(); err == nil {
+		t.Fatal("WebSocket remained open after initial snapshot failure")
+	}
+}
+
+func TestServeStreamClosesWebSocketWhenPeriodicSnapshotFails(t *testing.T) {
+	cs := fake.NewSimpleClientset()
+	s := New("", nil, k8s.NewWatcher(cs), cs, nil)
+	calls := 0
+	s.snapshot = func() ([]k8s.PodView, error) {
+		calls++
+		if calls == 1 {
+			return []k8s.PodView{}, nil
+		}
+		return nil, errors.New("cache unavailable")
+	}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		conn, err := upgrader.Upgrade(w, r, nil)
+		if err != nil {
+			t.Errorf("upgrade: %v", err)
+			return
+		}
+		defer conn.Close()
+		s.serveStream(conn, make(chan []byte), 10*time.Millisecond)
+	}))
+	defer server.Close()
+	ws, _, err := websocket.DefaultDialer.Dial("ws"+strings.TrimPrefix(server.URL, "http"), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ws.Close()
+	ws.SetReadDeadline(time.Now().Add(time.Second))
+	if _, _, err := ws.ReadMessage(); err != nil {
+		t.Fatalf("initial snapshot: %v", err)
+	}
+	ws.SetReadDeadline(time.Now().Add(time.Second))
+	if _, _, err := ws.ReadMessage(); err == nil {
+		t.Fatal("WebSocket remained open after periodic snapshot failure")
+	}
+}
+
 func TestServeStreamPeriodicallyConvergesAfterDroppedEvent(t *testing.T) {
 	cs := fake.NewSimpleClientset()
 	s := New("", nil, k8s.NewWatcher(cs), cs, nil)

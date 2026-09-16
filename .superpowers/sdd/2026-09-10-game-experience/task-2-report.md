@@ -66,3 +66,33 @@ O registro do cliente no Hub permanece anterior ao snapshot inicial, portanto o 
 ## Preocupações
 
 Nenhuma preocupação bloqueante. O intervalo de produção continua fixo em cinco segundos; os dez milissegundos existem somente no teste privado do helper.
+
+## Correção de revisão 1
+
+- O teste de `Stream` agora chama diretamente o `onclose` retido pelo primeiro socket depois que o segundo socket foi criado. Ele confirma que a geração antiga não altera o estado de conexão, não agenda timer e não cria outro socket.
+- Foram adicionados dois testes WebSocket reais para falha de snapshot: um para a leitura inicial e outro para o ticker periódico. Ambos confirmam que o cliente observa o fechamento da conexão, sem um snapshot vazio inventado.
+
+Comandos executados:
+
+```text
+gofmt -w internal/server/server_test.go
+go test -race ./internal/server -run 'TestSnapshotFailureReturnsServiceUnavailable|TestServeStream(ClosesWebSocketWhenInitialSnapshotFails|ClosesWebSocketWhenPeriodicSnapshotFails|PeriodicallyConvergesAfterDroppedEvent|StopsWhenClientCloses)' -count=1
+```
+
+Resultado:
+
+```text
+ok   github.com/gabriel-dantas98/kubeaquarium/internal/server  1.823s
+```
+
+```text
+cd web && npm exec tsc -- --noEmit && node ../video/scripts/test-recovery.mjs
+```
+
+Resultado:
+
+```text
+recovery frontend tests passed
+```
+
+O runner continuou usando o demo local em `http://127.0.0.1:7781/?demo`; nenhuma operação de cluster foi executada.

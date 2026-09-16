@@ -25,6 +25,12 @@ export async function runStreamTests(): Promise<void> {
   const timers = new Map<number, () => void>();
   const timerCount = () => timers.size;
   const socketCount = () => FakeWebSocket.instances.length;
+  const runTimers = () => {
+    for (const [id, callback] of [...timers]) {
+      timers.delete(id);
+      callback();
+    }
+  };
   const events: StreamEvent[] = [];
   const connections: boolean[] = [];
   try {
@@ -49,11 +55,14 @@ export async function runStreamTests(): Promise<void> {
 
     first.close();
     if (connections.at(-1) !== false || timerCount() !== 1) throw new Error('close did not schedule reconnect');
-    for (const callback of [...timers.values()]) callback();
+    runTimers();
     const second = FakeWebSocket.instances[1];
     if (!second || second === first) throw new Error('reconnect did not create a socket');
     first.message(JSON.stringify({ type: 'deleted', uid: 'stale' }));
     if (events.some(event => event.type === 'deleted' && event.uid === 'stale')) throw new Error('old generation callback was accepted');
+    const connectionCount = connections.length;
+    first.onclose?.();
+    if (timerCount() !== 0 || connections.length !== connectionCount || socketCount() !== 2) throw new Error('old generation close scheduled reconnect');
 
     stream.stop();
     if (!second.closed || timerCount() !== 0) throw new Error('stop did not close socket and cancel reconnect');
