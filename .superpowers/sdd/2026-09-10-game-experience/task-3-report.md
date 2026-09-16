@@ -39,3 +39,31 @@ O runner foi executado contra http://127.0.0.1:7781/?demo, com Vite/Playwright e
 Revisei especialmente a separação entre o mapa de candidatos atuais e candidateUids histórico. O primeiro é limpo por snapshot/delete; o segundo nunca é usado para concluir Ready, mas mantém a ambiguidade. Uma nova evidência concorrente também reclassifica uma operação anteriormente Ready como ambígua e remove o tempo.
 
 O tracker não infere causalidade Kubernetes, tempo de scheduler ou disponibilidade. Após gap/snapshot ele pode mostrar o pod Ready atualmente, mas omite a duração exata.
+
+## Correção 1 — reconciliação de snapshot
+
+Uma revisão posterior encontrou que um snapshot que voltava a incluir o UID alvo não
+limpava ausência histórica. Isso poderia deixar um candidato Ready mesmo com o alvo
+presente. Também faltava limpar Ready e sua duração quando o snapshot posterior removia
+o candidato atual.
+
+Foram adicionadas as regressões snapshot target membership revokes stale absence and
+Ready timing e snapshot omission revokes stale candidate Ready. A primeira exige que o
+tracker volte para accepted e limpe absentAt/readyObservedAt; a segunda exige absent,
+sem candidateUid ou readyObservedAt.
+
+RED (antes da implementação):
+
+    cd video && node scripts/test-recovery.mjs
+    page.evaluate: Error: snapshot target membership revokes stale absence and Ready timing
+
+GREEN:
+
+    cd web && npm exec tsc -- --noEmit
+    # exit 0
+
+    cd video && node scripts/test-recovery.mjs
+    # recovery frontend tests passed
+
+Não foi retida evidência RED histórica da implementação original da Task 3; este RED é
+somente o da regressão adicionada nesta correção.

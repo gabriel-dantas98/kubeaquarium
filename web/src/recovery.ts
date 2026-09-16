@@ -57,7 +57,11 @@ export class RecoveryTracker {
     if (event.type === 'snapshot') {
       for (const state of this.states) {
         state.candidates.clear();
-        if (!event.pods.some(p => p.uid === state.operation.target.uid)) state.absent = true;
+        if (event.pods.some(p => p.uid === state.operation.target.uid)) {
+          state.absent = false;
+          state.operation.absentAt = undefined;
+          state.operation.readyObservedAt = undefined;
+        } else state.absent = true;
         for (const pod of event.pods) this.consider(state, pod, false);
       }
     } else if (event.type === 'deleted') {
@@ -93,6 +97,7 @@ export class RecoveryTracker {
       }
       const candidate = [...state.candidates.values()][0];
       operation.candidateUid = candidate?.uid;
+      if (!candidate || !state.absent || !candidate.ready || !!candidate.deletionTimestamp || kind === 'Job' || kind === 'CronJob') operation.readyObservedAt = undefined;
       if (candidate && state.absent && candidate.ready && !candidate.deletionTimestamp && kind !== 'Job' && kind !== 'CronJob') {
         operation.phase = 'ready';
         if (!operation.observationIncomplete && state.seenAdded.has(candidate.uid) && operation.absentAt !== undefined) {
