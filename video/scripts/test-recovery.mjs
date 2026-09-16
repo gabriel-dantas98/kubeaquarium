@@ -13,6 +13,7 @@ try {
     const recovery = await import('/src/recovery.test.ts');
     const operations = await import('/src/operations.test.ts');
     const stream = await import('/src/stream.test.ts');
+    recovery.testObservedRecovery();
     recovery.runRecoveryTests();
     await operations.runOperationsTests();
     await stream.runStreamTests();
