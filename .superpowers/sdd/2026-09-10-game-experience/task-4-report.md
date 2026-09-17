@@ -40,3 +40,33 @@ O smoke test coleta `pageerror`, espera os pods da demo, executa os quatro contr
 
 - Os dois builds do Vite ainda avisam que o bundle JavaScript minificado tem mais de 500 kB. Isso já existia no produto e não foi alterado nesta tarefa.
 - A validação usa exclusivamente a demo local e timers falsos; nenhuma operação de cluster foi executada.
+
+## Correção round 1/5
+
+O revisor identificou que `absent` ou `candidate` podiam mover a missão de `fire` para `observe` antes da confirmação HTTP. A transição agora exige `operation.acceptedAt !== undefined`. Como essa confirmação pode chegar depois dos eventos do stream, a mesma atualização ainda conclui corretamente uma operação que já esteja `ready`.
+
+O teste da demo também reinicia enquanto os três timers da primeira recuperação ainda estão pendentes, avança além de todos os prazos antigos e confirma que só o snapshot de reset foi emitido. Depois conclui duas recuperações novas até Ready. O smoke test visual percorre duas missões completas com Restart entre elas.
+
+### RED observado em `177cee4`
+
+```text
+Temporary worktree: git worktree add --detach /tmp/kubeaquarium-task4-red 177cee4
+Temporary server: cd /tmp/kubeaquarium-task4-red/web && npm exec vite -- --port 7782 --strictPort
+Browser assertion: construct DemoMission in fire, deliver candidate without acceptedAt, require state === fire
+# saída (código 1): Error: RED: stream candidate advanced guide before HTTP acceptance: observe
+```
+
+O worktree e o servidor temporários foram removidos após a reprodução.
+
+### GREEN
+
+```text
+cd web && npm exec tsc -- --noEmit
+# saída: código 0
+
+cd video && node scripts/test-recovery.mjs
+# saída: recovery frontend tests passed
+
+cd video && node scripts/check-demo-mission.mjs
+# saída: visible demo mission flow passed
+```

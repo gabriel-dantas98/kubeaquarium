@@ -59,22 +59,20 @@ export async function runDemoTests(): Promise<void> {
     const accepted = await stream.deletePod(target);
     assert(accepted.accepted && fetches === 0, 'simulated deletion does not fetch');
     await assertRejects(() => stream.deletePod(target), 'double delete is rejected');
-    advance(400);
-    assert(events.at(-1)?.type === 'deleted', 'target deletion is observed after 400ms');
-    advance(800);
-    const added = events.at(-1);
-    assert(added?.type === 'added' && added.pod.uid === 'demo-mission-new' && !added.pod.ready, 'replacement arrives Pending after 1200ms');
-    advance(2000);
-    const ready = events.at(-1);
-    assert(ready?.type === 'updated' && ready.pod.uid === 'demo-mission-new' && ready.pod.ready, 'replacement becomes Ready after 3200ms');
 
     const beforeReset = events.length;
     stream.resetMission();
     advance(4000);
-    assert(events.length === beforeReset + 1 && events.at(-1)?.type === 'snapshot', 'reset cancels old recovery timers and restores the snapshot');
+    assert(events.length === beforeReset + 1 && events.at(-1)?.type === 'snapshot', 'pending reset cancels every stale deleted, added, and updated event');
 
-    const secondTarget = (events.at(-1) as Extract<StreamEvent, { type: 'snapshot' }>).pods.find(pod => pod.uid === 'demo-mission-old')!;
-    await stream.deletePod(secondTarget);
+    await completeMissionCycle(stream, events, advance);
+    stream.resetMission();
+    await completeMissionCycle(stream, events, advance);
+    assert(fetches === 0, 'two complete simulated mission cycles never fetch');
+
+    stream.resetMission();
+    const thirdTarget = missionTarget(events);
+    await stream.deletePod(thirdTarget);
     const beforeStop = events.length;
     stream.stop();
     advance(4000);
@@ -87,6 +85,26 @@ export async function runDemoTests(): Promise<void> {
     window.setInterval = originalSetInterval;
     window.clearInterval = originalClearInterval;
   }
+}
+
+async function completeMissionCycle(stream: DemoStream, events: StreamEvent[], advance: (milliseconds: number) => void): Promise<void> {
+  const target = missionTarget(events);
+  await stream.deletePod(target);
+  advance(400);
+  assert(events.at(-1)?.type === 'deleted', 'target deletion is observed after 400ms');
+  advance(800);
+  const added = events.at(-1);
+  assert(added?.type === 'added' && added.pod.uid === 'demo-mission-new' && !added.pod.ready, 'replacement arrives Pending after 1200ms');
+  advance(2000);
+  const ready = events.at(-1);
+  assert(ready?.type === 'updated' && ready.pod.uid === 'demo-mission-new' && ready.pod.ready, 'replacement becomes Ready after 3200ms');
+}
+
+function missionTarget(events: StreamEvent[]): PodView {
+  const snapshot = [...events].reverse().find((event): event is Extract<StreamEvent, { type: 'snapshot' }> => event.type === 'snapshot');
+  const target = snapshot?.pods.find(pod => pod.uid === 'demo-mission-old');
+  if (!target) throw new Error('mission reset did not restore its target');
+  return target;
 }
 
 async function assertRejects(action: () => Promise<unknown>, message: string): Promise<void> {

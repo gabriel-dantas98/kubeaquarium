@@ -8,7 +8,7 @@ export class DemoMission {
  update(operations:readonly RecoveryOperation[]){
   if(this.closed)return;
   const op=operations.find(o=>o.target.uid==='demo-mission-old');
-  if(op&&['accepted','absent','candidate'].includes(op.phase)&&this.state==='fire')this.state='observe';
+  if(op?.acceptedAt!==undefined&&this.state==='fire')this.state='observe';
   if(op?.phase==='ready'&&this.state==='observe')this.state='complete';
   this.render();
  }
