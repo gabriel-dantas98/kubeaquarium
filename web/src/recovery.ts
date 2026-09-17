@@ -38,7 +38,8 @@ export class RecoveryTracker {
     this.recompute(); this.prune(); return operation;
   }
   accepted(id: string): void {
-    const state = this.find(id); if (!state || closed.has(state.operation.phase)) return;
+    const state = this.find(id);
+    if (!state || ['failed', 'unknown', 'ambiguous', 'standalone'].includes(state.operation.phase)) return;
     state.operation.acceptedAt = this.now(); this.recompute();
   }
   failed(id: string, message: string, uncertain: boolean): void {

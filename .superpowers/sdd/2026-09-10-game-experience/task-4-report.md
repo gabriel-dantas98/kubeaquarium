@@ -70,3 +70,32 @@ cd video && node scripts/test-recovery.mjs
 cd video && node scripts/check-demo-mission.mjs
 # saída: visible demo mission flow passed
 ```
+
+## Correção round 2/5
+
+O deduplicador de `main.ts` agora inclui `acceptedAt`, portanto a aceitação HTTP tardia é uma mudança observável para a missão. A reprodução revelou também que `RecoveryTracker.accepted()` tratava `ready` como terminal e descartava essa aceitação; ele agora aceita o único carimbo tardio em `ready`, mas continua ignorando falha, resultado desconhecido, ambiguidade e standalone. A regressão do tracker verifica Ready antes de `accepted(id)`, exige `acceptedAt` registrado e confirma que fase e tempo Ready observados não regridem.
+
+`check-demo-mission.mjs` carrega a instância já usada pelo app, substitui somente `DemoStream.prototype.deletePod` nessa página isolada e retarda a Promise em 5 segundos depois de preservar os eventos normais. O teste espera o cartão `ready`, confirma que o guia ainda mostra `Fire a simulated request`, e então exige `Recovery observed` após a aceitação tardia. Ele percorre duas repetições.
+
+### RED observado
+
+```text
+cd video && node scripts/check-demo-mission.mjs
+# saída (código 1): Error: guide did not complete after delayed acceptance:
+# SIMULATED · No cluster changesFire a simulated requestPrepare submarineExplore freely
+```
+
+Isso ocorreu antes de permitir `acceptedAt` tardio no tracker: o painel já mostrava Ready, mas a missão não recebia uma atualização de aceitação.
+
+### GREEN
+
+```text
+cd web && npm exec tsc -- --noEmit
+# saída: código 0
+
+cd video && node scripts/test-recovery.mjs
+# saída: recovery frontend tests passed
+
+cd video && node scripts/check-demo-mission.mjs
+# saída: visible demo mission flow passed
+```

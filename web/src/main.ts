@@ -67,7 +67,7 @@ const recoveryPanel = new RecoveryPanel(document.getElementById('recovery-panel'
 let previousRecovery = '';
 function renderRecovery() {
   const operations = tracker.operations;
-  const signature = JSON.stringify(operations.map(o => [o.id,o.phase,o.message,o.candidateUid]));
+  const signature = JSON.stringify(operations.map(o => [o.id,o.phase,o.message,o.candidateUid,o.acceptedAt]));
   if (signature === previousRecovery) return;
   previousRecovery = signature;
   recoveryPanel.render(operations);
