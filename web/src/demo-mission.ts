@@ -5,7 +5,13 @@ export class DemoMission {
  constructor(private onFocus:(uid:string)=>void,private onInspect:(uid:string)=>void,private onRestart:()=>void,private onPrepareFire:()=>void=()=>{}){}
  mount(root:HTMLElement){this.root=root;this.closed=false;this.render()}
  selected(uid:string){if(uid!=='demo-mission-old'||this.closed)return;if(this.state==='inspect'){this.state='fire';this.render()}}
- update(operations:readonly RecoveryOperation[]){if(this.closed)return;const op=operations.find(o=>o.target.uid==='demo-mission-old');if(op&&['accepted','absent','candidate'].includes(op.phase)&&this.state==='fire')this.state='observe';if(op?.phase==='ready')this.state='complete';this.render()}
+ update(operations:readonly RecoveryOperation[]){
+  if(this.closed)return;
+  const op=operations.find(o=>o.target.uid==='demo-mission-old');
+  if(op&&['accepted','absent','candidate'].includes(op.phase)&&this.state==='fire')this.state='observe';
+  if(op?.phase==='ready'&&this.state==='observe')this.state='complete';
+  this.render();
+ }
  dispose(){this.root?.replaceChildren();this.root=undefined}
  private render(){if(!this.root)return;this.root.dataset.missionStep=this.state;this.root.replaceChildren();const badge=document.createElement('strong');badge.textContent='SIMULATED · No cluster changes';const p=document.createElement('p');p.textContent=({find:'Find the unhealthy pod',inspect:'Inspect the failure',fire:'Fire a simulated request',observe:'Watch the new pod become Ready',complete:'Recovery observed'} as const)[this.state];this.root.append(badge,p);if(this.state==='find'){const b=document.createElement('button');b.textContent='Find pod';b.onclick=()=>{this.onFocus('demo-mission-old');this.state='inspect';this.render()};this.root.append(b)}if(this.state==='inspect'){const b=document.createElement('button');b.textContent='Inspect failure';b.onclick=()=>this.onInspect('demo-mission-old');this.root.append(b)}if(this.state==='fire'){const b=document.createElement('button');b.textContent='Prepare submarine';b.onclick=()=>this.onPrepareFire();this.root.append(b)}if(this.state==='complete'){const b=document.createElement('button');b.textContent='Restart mission';b.onclick=()=>{this.onRestart();this.state='find';this.render()};this.root.append(b)}const close=document.createElement('button');close.textContent='Explore freely';close.onclick=()=>{this.closed=true;this.root?.replaceChildren()};this.root.append(close)}
 }

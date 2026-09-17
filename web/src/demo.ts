@@ -45,7 +45,8 @@ export class DemoStream implements PodOperations {
     ++this.generation;
     for (const handle of this.handles) window.clearTimeout(handle);
     this.handles.clear(); this.pending.clear();
-    if (this.timer) window.clearInterval(this.timer);
+    if (this.timer !== undefined) window.clearInterval(this.timer);
+    this.timer = undefined;
     this.onConnectionChange?.(false);
   }
 
@@ -53,7 +54,7 @@ export class DemoStream implements PodOperations {
     if (this.stopped || this.pending.has(pod.uid) || !this.pods.some(p => p.uid === pod.uid)) throw new Error('Pod is no longer available');
     this.pending.add(pod.uid);
     const controller = pod.controller;
-    this.schedule(400, () => { this.pods = this.pods.filter(p => p.uid !== pod.uid); this.emit({ type: 'deleted', uid: pod.uid }); });
+    this.schedule(400, () => this.emit({ type: 'deleted', uid: pod.uid }));
     if (!controller) return { accepted: true, uid: pod.uid };
     const fixed = pod.uid === 'demo-mission-old';
     const newUid = fixed ? 'demo-mission-new' : `demo-replacement-${pod.uid}-${this.generation}`;

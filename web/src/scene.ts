@@ -195,6 +195,7 @@ export class AquariumScene {
     this.mesh.frustumCulled = false;
     const colors = new Float32Array(MAX_INSTANCES * 3);
     this.mesh.geometry.setAttribute('instanceColor', new THREE.InstancedBufferAttribute(colors, 3));
+    this.mesh.geometry.setAttribute('instanceState', new THREE.InstancedBufferAttribute(new Float32Array(MAX_INSTANCES), 1));
     this.scene.add(this.mesh);
 
     this.bubbleMesh = new THREE.InstancedMesh(
@@ -883,6 +884,8 @@ export class AquariumScene {
 
   /** Pod under the crosshair, using the same tolerant pick as dive-mode clicks. */
   private aimedTargetUid(): string | null {
+    const focused = this.focusedUid ? this.slots.get(this.focusedUid) : undefined;
+    if (focused && focused.removingAt === undefined && !focused.marked) return focused.uid;
     const ray = this.raycaster.ray;
     const tmp = new THREE.Vector3();
     let bestUid: string | null = null;

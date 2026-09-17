@@ -63,7 +63,7 @@ const inFlight = new Set<string>();
 const tracker = new RecoveryTracker(() => performance.now());
 const recoveryPanel = new RecoveryPanel(document.getElementById('recovery-panel')!, uid => showPod(uid), id => {
   tracker.dismiss(id); renderRecovery();
-});
+}, uid => store.pods.has(uid));
 let previousRecovery = '';
 function renderRecovery() {
   const operations = tracker.operations;

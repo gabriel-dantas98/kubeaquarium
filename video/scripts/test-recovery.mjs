@@ -13,10 +13,16 @@ try {
     const recovery = await import('/src/recovery.test.ts');
     const operations = await import('/src/operations.test.ts');
     const stream = await import('/src/stream.test.ts');
+    const panel = await import('/src/recovery-panel.test.ts');
+    const demo = await import('/src/demo.test.ts');
+    const mission = await import('/src/demo-mission.test.ts');
     recovery.testObservedRecovery();
     recovery.runRecoveryTests();
     await operations.runOperationsTests();
     await stream.runStreamTests();
+    panel.runRecoveryPanelTests();
+    await demo.runDemoTests();
+    mission.runDemoMissionTests();
   });
   await page.clock.runFor(1);
   if (errors.length) throw new Error(`page errors: ${errors.map(String).join('\n')}`);
