@@ -13,7 +13,7 @@ export const KubeAquariumDemo = ({ beats = [] }: { beats?: Beat[] }) => {
   return <AbsoluteFill style={styles.root}>
     <AbsoluteFill style={styles.videoFrame}><Video muted objectFit="cover" src={staticFile(footage)} style={styles.video} /></AbsoluteFill>
     <AbsoluteFill style={styles.vignette} />
-    <div style={styles.title}><span style={styles.brand}>kubeaquarium</span><span style={styles.subtitle}>Simulated Kubernetes lifecycle</span></div>
+    {!active && <div style={styles.title}><span style={styles.brand}>kubeaquarium</span><span style={styles.subtitle}>Simulated Kubernetes lifecycle</span></div>}
     <div style={{ ...styles.caption, opacity: captionOpacity(frame, active, fps) }}>{caption}</div>
   </AbsoluteFill>;
 };
@@ -27,6 +27,6 @@ function captionOpacity(frame: number, active: Beat | undefined, fps: number) {
 const styles: Record<string, CSSProperties> = {
   root: { background: "#03101d", color: "#e8f6ff" }, videoFrame: { overflow: "hidden" }, video: { width: "100%", height: "100%" },
   vignette: { background: "linear-gradient(180deg, rgba(2,8,16,.64) 0%, rgba(2,8,16,.04) 32%, rgba(2,8,16,.12) 64%, rgba(2,8,16,.76) 100%)" },
-  title: { position: "absolute", left: 42, top: 32, display: "flex", flexDirection: "column", gap: 4, textShadow: "0 2px 22px rgba(0,0,0,.7)" }, brand: { fontSize: 42, fontWeight: 800, lineHeight: 1 }, subtitle: { color: "#cfe9ff", fontSize: 18, fontWeight: 650 },
+  title: { position: "absolute", right: 32, bottom: 100, textAlign: "right", display: "flex", flexDirection: "column", gap: 4, textShadow: "0 2px 22px rgba(0,0,0,.7)" }, brand: { fontSize: 28, fontWeight: 800, lineHeight: 1 }, subtitle: { color: "#cfe9ff", fontSize: 14, fontWeight: 650 },
   caption: { position: "absolute", left: 42, bottom: 32, padding: "10px 15px", borderRadius: 8, background: "rgba(2, 14, 25, .78)", color: "#e8f6ff", fontSize: 24, fontWeight: 750, textShadow: "0 2px 12px rgba(0,0,0,.7)" },
 };

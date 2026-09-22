@@ -203,13 +203,15 @@ per-instance color for status tinting. From there, the tricks stack up:
 6. **Label culling.** Pod labels are DOM nodes, so only the nearest few render, they're pooled and
    reused, and overlapping ones get collision-culled.
 7. **No CSS timelines for critical UI.** Under heavy WebGL load, browsers throttle CSS
-   animation/transition clocks (we learned this the fun way). Anything that must happen — kill
-   feed removal, overlay dismissal — is driven by JS timers; CSS only ever adds polish.
+   animation/transition clocks. Operation state and overlay dismissal are driven by JavaScript;
+   CSS only adds polish.
 8. **Server-side narrowing.** `--namespace` and `--label-selector` filter at the informer, so a
    5,000-pod cluster doesn't have to reach the browser to show you one team's workloads.
 
-Measured on an M-series Mac (headless Chromium): 342 pods with sim + filter + labels active
-sustains 60 FPS, including under drag stress. Evidence in [`docs/benchmarks/`](docs/benchmarks/).
+Frame-time measurements use separate synthetic loads of 200, 1,200 and 2,500 pods.
+Current validation and limitations are indexed in
+[`docs/validation/game-experience-2026-09-22.md`](docs/validation/game-experience-2026-09-22.md);
+older results in [`docs/benchmarks/`](docs/benchmarks/) describe their recorded revisions and hardware.
 
 ## Development
 
@@ -224,7 +226,7 @@ make scale N=500    # stress test
 
 # regenerate the demo video (Remotion + Playwright choreography)
 cd video && pnpm install
-DEMO_URL=http://127.0.0.1:7781 pnpm run capture && pnpm run render
+DEMO_URL='http://127.0.0.1:7781/?demo' pnpm run capture && pnpm run render
 ```
 
 Repo layout:
@@ -265,6 +267,7 @@ node video/scripts/check-radar.mjs
 node video/scripts/check-labels.mjs
 node video/scripts/check-audio.mjs
 node video/scripts/test-recovery.mjs
+node video/scripts/check-demo-mission.mjs
 node video/scripts/verify-recovery.mjs
 ```
 
