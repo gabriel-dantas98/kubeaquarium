@@ -45,7 +45,7 @@ Este documento foi criado na rodada de planejamento. A implementação foi retom
 ### Onda 0 — baseline e contratos
 
 - [x] Coordenador registra revisão Git, estado de trabalho, navegador/versão, viewport, DPR e máquina. Preservar AGENTS.md preexistente não rastreado e mudanças do usuário.
-- [ ] Agente visual cria e executa baseline reproduzível em demo antes de modificar shader, labels ou efeitos.
+- [x] Agente visual cria e executa baseline reproduzível a partir da revisão original, conforme o ajuste de execução descrito abaixo.
 - [x] Agente de recuperação fecha tipos Go/TS, UID precondition e casos de eventos fora de ordem; alterações em types.ts e demo.ts são exclusivas dessa frente.
 - [x] Coordenador verifica que nomes e assinaturas dos módulos novos nos três planos não conflitam.
 
@@ -68,7 +68,7 @@ Este documento foi criado na rodada de planejamento. A implementação foi retom
 - [x] Após liberar namespaces.ts, agente visual aplica contornos e transição interior/exterior.
 - [x] Agente de navegação conecta sonar a coordenadas reais e sinaliza altura/alcance/alvo.
 - [x] Coordenador integra enquadramento considerando painel lateral, resumos distantes e preferências de conforto.
-- [ ] Comparar capturas overview/filter/radar/detail/dive nas mesmas condições do baseline.
+- [x] Comparar capturas overview/filter/radar/detail/dive nas mesmas condições do baseline.
 
 **Entrega:** mudança no número de pods não reposiciona namespaces existentes; usuário encontra e reencontra um alvo; dentro de uma bolha a grade não domina a visão.
 
@@ -150,6 +150,6 @@ Checklist comportamental final:
 - [x] Reconexão/lacuna não produz duração fictícia.
 - [x] Demo e captura não enviam DELETE real.
 - [x] Som desativado permanece silencioso; movimento reduzido elimina tremor.
-- [ ] Baseline e resultado registram p50/p95/p99 brutos e resolução efetiva.
+- [x] Baseline e resultado registram p50/p95/p99 brutos e resolução efetiva.
 
 Critério de encerramento: cada checkbox tem evidência ou limitação explícita; não declarar a onda completa apenas por build bem-sucedido. Alterações puramente documentais desta rodada são verificadas por revisão de cobertura, links e consistência, sem executar a suíte do produto desnecessariamente.

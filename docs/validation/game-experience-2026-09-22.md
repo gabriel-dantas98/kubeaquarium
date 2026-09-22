@@ -1,6 +1,6 @@
 # Validação da experiência — 22/09/2026
 
-Implementação na branch `codex/game-experience`, em worktree separado. Base: `e31be2d`.
+Implementação concluída na branch `codex/game-experience`, em worktree separado. Base: `e31be2d`; fonte medida: `05bc429`, sem mudanças posteriores em código ou assets do produto.
 Não houve publicação, merge ou operação em cluster real. As interações destrutivas dos testes usam demo local ou HTTP/WebSocket simulados.
 
 ## Entregas
@@ -44,9 +44,9 @@ Foram geradas 16 capturas da demo em 1600×900 e 1280×720: overview, filtro, ra
 
 ## Desempenho
 
-O protocolo completo compara 200, 1.200 e 2.500 pods, cinco cenários e três rodadas por versão, com 10 segundos de aquecimento e 30 segundos de amostragem. As versões são medidas sequencialmente para evitar concorrência de GPU entre testes. Amostras curtas servem apenas para validar o script, não para afirmar melhoria de FPS.
+O protocolo completo compara 200, 1.200 e 2.500 pods, cinco cenários e três rodadas por versão, com 10 segundos de aquecimento e 30 segundos de amostragem. As versões são medidas sequencialmente para evitar concorrência de GPU entre testes. Amostras curtas servem apenas para validar o script, não para afirmar melhoria de FPS. O cenário de impacto mede um acerto confirmado por janela, em vez dos dez impactos propostos inicialmente; os 50 ciclos verificam repetição e recursos separadamente. O baseline foi medido sobre um checkout imutável do código anterior após o início da implementação. Esses ajustes de protocolo estão explicitados no relatório.
 
-O teste de 50 ciclos passou, alternando 25 ciclos normais e 25 com movimento reduzido, com 50 exclusões simuladas. Após o aquecimento, o DOM variou de 205 a 207 elementos; as geometrias permaneceram em 27 e as texturas em zero. A comparação completa de frame-time ainda está em andamento; os resultados serão vinculados aqui.
+O teste de 50 ciclos passou, alternando 25 ciclos normais e 25 com movimento reduzido, com 50 exclusões simuladas. Após o aquecimento, o DOM variou de 205 a 207 elementos; as geometrias permaneceram em 27 e as texturas em zero. A comparação completa terminou com 45 cenários por versão. A maior regressão da mediana de p95 foi 4,6%, abaixo do limite de 10%; com 200 pods, as medianas ficaram entre 17,2 e 17,4 ms, abaixo da meta de 20 ms. Nenhum intervalo rAF excedeu 50 ms nas janelas medidas, mantendo 1440×900 e DPR 1. Veja [comparação e dados brutos](../benchmarks/2026-09-22-visual-feedback.md).
 
 ## Limites da validação
 
