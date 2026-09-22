@@ -7,14 +7,14 @@ const url = requireDemoUrl();
 const output = path.resolve(process.env.VISUAL_CAPTURE_OUTPUT ?? 'docs/screenshots/visual-feedback');
 const sizes = [[1600, 900], [1280, 720]];
 await mkdir(output, { recursive: true });
-const manifest = { url, startedAt: new Date().toISOString(), captures: [], errors: [] };
+const manifest = { url, startedAt: new Date().toISOString(), captures: [], errors: [], impactCapture: { timing: 'immediately after lastAttackHitUid changes', effectDurationMs: 250, limitation: 'A screenshot may miss particles if compositor scheduling exceeds the short effect duration.' } };
 
 function name(size, stage, reduced) { return `${size[0]}x${size[1]}-${stage}${reduced ? '-reduced' : ''}.png`; }
 async function labelsDoNotIntersect(page) {
   return page.evaluate(() => {
     const overlap = (a, b) => a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top;
     const labels = [...document.querySelectorAll('.pod-label.visible,.namespace-label.visible')];
-    const panels = [...document.querySelectorAll('.topbar,#search:not(.hidden),#radar:not(.hidden),.detail:not(.hidden),#demo-mission,#recovery-panel')];
+    const panels = [...document.querySelectorAll('.topbar,#search:not(.hidden),#radar:not(.hidden),.detail:not(.hidden),#demo-mission,#recovery-panel')].filter(panel => { const rect = panel.getBoundingClientRect(); return rect.width > 0 && rect.height > 0; });
     return !labels.some((label, index) => panels.some(panel => overlap(label.getBoundingClientRect(), panel.getBoundingClientRect())) || labels.slice(index + 1).some(other => overlap(label.getBoundingClientRect(), other.getBoundingClientRect())));
   });
 }
@@ -31,8 +31,12 @@ for (const size of sizes) {
     await page.waitForFunction(() => document.querySelectorAll('.namespace-label.visible').length > 0);
     const shot = async (stage, reduced = false) => {
       const file = path.join(output, name(size, stage, reduced));
+      await page.evaluate(() => window.__kubeaquarium?.pause?.());
+      const labelsNonIntersecting = await labelsDoNotIntersect(page);
+      if (!labelsNonIntersecting) throw new Error(`Visible labels overlap during ${stage}`);
       await page.screenshot({ path: file });
-      manifest.captures.push({ file, stage, size, reduced, labelsNonIntersecting: await labelsDoNotIntersect(page) });
+      await page.evaluate(() => window.__kubeaquarium?.resume?.());
+      manifest.captures.push({ file, stage, size, reduced, labelsNonIntersecting });
     };
     await shot('overview');
     await page.keyboard.press('/'); await page.locator('#search-input').fill('ns:bench-payments'); await page.waitForFunction(() => window.__kubeaquarium?.matched > 0); await page.waitForTimeout(120); await shot('filter'); await page.keyboard.press('Escape');
@@ -42,7 +46,7 @@ for (const size of sizes) {
     await mission.getByRole('button', { name: 'Inspect failure' }).click();
     await mission.getByRole('button', { name: 'Prepare submarine' }).click();
     await page.waitForFunction(() => window.__kubeaquarium?.diveMode === true); await shot('dive');
-    await page.keyboard.press('ControlOrMeta+l');
+    if (!await page.evaluate(() => window.__kubeaquarium?.attackMode)) await page.keyboard.press('ControlOrMeta+l');
     const before = await page.evaluate(() => window.__kubeaquarium?.lastAttackHitUid ?? null);
     await page.mouse.click(size[0] / 2, size[1] / 2);
     await page.waitForFunction(hit => window.__kubeaquarium?.lastAttackHitUid !== hit, before, { timeout: 5_000 });
