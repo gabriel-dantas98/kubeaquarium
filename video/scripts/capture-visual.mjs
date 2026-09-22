@@ -10,6 +10,10 @@ await mkdir(output, { recursive: true });
 const manifest = { url, startedAt: new Date().toISOString(), captures: [], errors: [], impactCapture: { timing: 'immediately after lastAttackHitUid changes', effectDurationMs: 250, limitation: 'A screenshot may miss particles if compositor scheduling exceeds the short effect duration.' } };
 
 function name(size, stage, reduced) { return `${size[0]}x${size[1]}-${stage}${reduced ? '-reduced' : ''}.png`; }
+async function settle(page, selector, opacity) {
+  await page.waitForFunction(({ selector, opacity }) => Number(getComputedStyle(document.querySelector(selector)).opacity) >= opacity, { selector, opacity });
+  await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+}
 async function labelsDoNotIntersect(page) {
   return page.evaluate(() => {
     const overlap = (a, b) => a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top;
@@ -29,6 +33,7 @@ for (const size of sizes) {
     await page.goto(url, { waitUntil: 'domcontentloaded' });
     await page.waitForFunction(() => window.__kubeaquarium?.pods > 0);
     await page.waitForFunction(() => document.querySelectorAll('.namespace-label.visible').length > 0);
+    await page.waitForTimeout(300);
     const shot = async (stage, reduced = false) => {
       const file = path.join(output, name(size, stage, reduced));
       await page.evaluate(() => window.__kubeaquarium?.pause?.());
@@ -39,8 +44,8 @@ for (const size of sizes) {
       manifest.captures.push({ file, stage, size, reduced, labelsNonIntersecting });
     };
     await shot('overview');
-    await page.keyboard.press('/'); await page.locator('#search-input').fill('ns:bench-payments'); await page.waitForFunction(() => window.__kubeaquarium?.matched > 0); await page.waitForTimeout(120); await shot('filter'); await page.keyboard.press('Escape');
-    await page.keyboard.press('ControlOrMeta+k'); await page.locator('#radar-input').fill('checkout'); await shot('radar'); await page.keyboard.press('Enter'); await page.waitForTimeout(950); await shot('focus'); await page.keyboard.press('Escape');
+    await page.keyboard.press('/'); await page.locator('#search-input').fill('ns:bench-payments'); await page.waitForFunction(() => window.__kubeaquarium?.matched > 0); await settle(page, '#search', .99); await shot('filter'); await page.keyboard.press('Escape'); await page.waitForFunction(() => Number(getComputedStyle(document.querySelector('#search')).opacity) <= .01);
+    await page.keyboard.press('ControlOrMeta+k'); await page.locator('#radar-input').fill('checkout'); await settle(page, '#radar', .99); await shot('radar'); await page.keyboard.press('Enter'); await page.waitForTimeout(950); await shot('focus'); await page.keyboard.press('Escape');
     const mission = page.locator('#demo-mission');
     await mission.getByRole('button', { name: 'Find pod' }).click();
     await mission.getByRole('button', { name: 'Inspect failure' }).click();
