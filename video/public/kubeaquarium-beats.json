@@ -1,26 +1,42 @@
 [
   {
+    "name": "overview",
+    "at": 0.28
+  },
+  {
+    "name": "filter",
+    "at": 4.5
+  },
+  {
+    "name": "radar",
+    "at": 8.17
+  },
+  {
     "name": "inspect",
-    "at": 4.35
+    "at": 11.75
+  },
+  {
+    "name": "dive",
+    "at": 17.19
   },
   {
     "name": "request",
-    "at": 18.5
+    "at": 19.87
   },
   {
     "name": "absent",
-    "at": 19.28
+    "at": 20.65
   },
   {
     "name": "candidate",
-    "at": 20.06
+    "at": 21.43
   },
   {
     "name": "ready",
-    "at": 21.85
+    "at": 23.22
   },
   {
     "name": "closing",
-    "at": 28.76
+    "at": 28.06
   }
 ]

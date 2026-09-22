@@ -1,4 +1,4 @@
-import { mkdir, readdir, rename, rm, stat, writeFile } from "node:fs/promises";
+import { mkdir, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { chromium } from "playwright";
 import { assertNoUnsafeNetwork, blockUnsafeNetwork, requireDemoUrl, verifyApiWebSocketBlocked } from "./recovery-demo.mjs";
@@ -8,16 +8,18 @@ const rawDir = path.join(root, "public", "raw");
 const output = path.join(root, "public", "kubeaquarium-footage.webm");
 const beatsFile = path.join(root, "public", "kubeaquarium-beats.json");
 const url = requireDemoUrl();
-const W = 960;
-const H = 540;
+const W = 1280;
+const H = 720;
 const timeout = 10_000;
 const expectedController = { uid: "demo-rs-checkout", kind: "ReplicaSet", name: "checkout-demo" };
 
 await mkdir(rawDir, { recursive: true });
-await rm(output, { force: true });
 const browser = await chromium.launch({ headless: true, args: ["--enable-gpu", "--use-angle=metal", "--ignore-gpu-blocklist"] });
 const context = await browser.newContext({ viewport: { width: W, height: H }, recordVideo: { dir: rawDir, size: { width: W, height: H } } });
 const page = await context.newPage();
+const recordedVideo = page.video();
+if (!recordedVideo) throw new Error("Playwright did not create a video recorder");
+const recordedPath = await recordedVideo.path();
 const errors = [];
 page.on("pageerror", (error) => errors.push(String(error)));
 const violations = await blockUnsafeNetwork(page);
@@ -41,17 +43,39 @@ try {
   await mission.getByText("SIMULATED · No cluster changes", { exact: true }).waitFor({ state: "visible", timeout });
   await page.waitForFunction(() => window.__kubeaquarium?.pods > 0, null, { timeout });
   await page.addStyleTag({ content: "#stats-container { display: none !important; }" });
-  await page.waitForTimeout(4_000);
+  await page.waitForFunction(() => document.querySelectorAll('.namespace-label.visible').length > 0);
+  beat("overview");
+  await page.waitForTimeout(1_500);
+  await page.mouse.move(900, 400);
+  await page.mouse.down();
+  await page.mouse.move(770, 440, { steps: 40 });
+  await page.mouse.up();
+  await page.waitForTimeout(2_000);
+
+  await page.keyboard.press('/');
+  await page.locator('#search-input').fill('ns:bench-payments');
+  await page.waitForFunction(() => window.__kubeaquarium?.matched > 0);
+  beat('filter');
+  await page.waitForTimeout(3_500);
+  await page.keyboard.press('Escape');
+  await page.keyboard.press('ControlOrMeta+k');
+  await page.locator('#radar-input').fill('checkout');
+  await page.waitForFunction(() => getComputedStyle(document.getElementById('radar')).opacity === '1');
+  beat('radar');
+  await page.waitForTimeout(3_500);
+  await page.keyboard.press('Escape');
 
   await mission.getByRole("button", { name: "Find pod" }).click();
   await mission.getByRole("button", { name: "Inspect failure" }).click();
   await page.locator("#demo-mission[data-mission-step=fire]").waitFor({ state: "visible", timeout });
   beat("inspect");
-  await page.waitForTimeout(13_000);
+  await page.waitForTimeout(4_500);
 
   // The local demo URL and visible simulation badge were confirmed before attack input.
   await mission.getByRole("button", { name: "Prepare submarine" }).click();
   await page.waitForFunction(() => window.__kubeaquarium?.diveMode === true, null, { timeout });
+  beat("dive");
+  await page.waitForTimeout(2_500);
   await page.mouse.click(W / 2, H / 2);
   await waitForPhase("accepted");
   beat("request");
@@ -72,16 +96,13 @@ try {
     }
   }
   beat("ready");
-  await page.waitForTimeout(6_000);
+  await page.waitForTimeout(4_000);
 
-  await page.keyboard.press("Escape");
-  await page.waitForTimeout(500);
-  await page.mouse.move(650, 270);
-  await page.mouse.down();
-  await page.mouse.move(330, 300, { steps: 24 });
-  await page.mouse.up();
+  await page.locator('#overview-toggle').click();
+  await page.waitForFunction(() => !window.__kubeaquarium?.diveMode);
+  await page.waitForTimeout(800);
   beat("closing");
-  await page.waitForTimeout(3_000);
+  await page.waitForTimeout(4_000);
   assertNoUnsafeNetwork(violations);
   await verifyApiWebSocketBlocked(page, violations);
   if (errors.length) throw new Error(`Page errors: ${errors.join("\n")}`);
@@ -90,13 +111,6 @@ try {
   await browser.close();
 }
 
-const files = await readdir(rawDir);
-const videos = await Promise.all(files.filter((file) => file.endsWith(".webm")).map(async (file) => {
-  const filePath = path.join(rawDir, file);
-  return { filePath, mtime: (await stat(filePath)).mtimeMs };
-}));
-videos.sort((a, b) => b.mtime - a.mtime);
-if (!videos[0]) throw new Error("Playwright did not produce a video file");
-await rename(videos[0].filePath, output);
+await rename(recordedPath, output);
 await writeFile(beatsFile, `${JSON.stringify(beats, null, 2)}\n`);
 console.log(JSON.stringify({ video: output, beats }, null, 2));

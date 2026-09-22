@@ -11,7 +11,7 @@ Não houve publicação, merge ou operação em cluster real. As interações de
 - Estados visuais por instância, pods concluídos imóveis, foco com espaço para o painel e efeitos de impacto contidos.
 - Som opcional iniciado por gesto; mute e suspensão ao ocultar a aba. Preferência compartilhada de movimento reduzido.
 - Recuperação acompanhada por identidade de pod/controlador e evidência observada, sem interpretar aceite HTTP como recuperação.
-- Missão simulada repetível e vídeo de aproximadamente 31 segundos gerado a partir das etapas realmente observadas.
+- Missão simulada repetível e vídeo de aproximadamente 33 segundos gerado a partir das etapas realmente observadas.
 
 ## Verificações executadas
 
@@ -40,7 +40,7 @@ Foram geradas 16 capturas da demo em 1600×900 e 1280×720: overview, filtro, ra
 - [Radar](../screenshots/visual-feedback/1280x720-radar.png) e [layout estreito](../screenshots/visual-feedback/radar-640x800.png)
 - [Foco](../screenshots/visual-feedback/1600x900-focus.png)
 - [Impacto normal](../screenshots/visual-feedback/1280x720-impact.png) e [reduzido](../screenshots/visual-feedback/1280x720-impact-reduced.png)
-- [Vídeo de aproximadamente 31 segundos](../video/kubeaquarium-demo.mp4)
+- [Vídeo de aproximadamente 33 segundos](../video/kubeaquarium-demo.mp4)
 
 ## Desempenho
 

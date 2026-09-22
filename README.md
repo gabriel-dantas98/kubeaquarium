@@ -13,9 +13,11 @@ And when you really need to delete one — there's a submarine.
 [![Go](https://img.shields.io/badge/Go-informers-00ADD8?logo=go&logoColor=white)](internal/k8s)
 [![Three.js](https://img.shields.io/badge/Three.js-instanced-000000?logo=threedotjs&logoColor=white)](web/src)
 
-[![kubeaquarium simulated recovery](docs/video/kubeaquarium-demo-poster.png)](docs/video/kubeaquarium-demo.mp4)
+[![Watch kubeaquarium: explore, inspect and recover](docs/video/kubeaquarium-demo-preview.gif)](docs/video/kubeaquarium-demo.mp4)
 
-*A simulated recovery mission. No Kubernetes access is used in this recording.*
+**[▶ Watch the full demo](docs/video/kubeaquarium-demo.mp4)** — explore the cluster, find a failing pod, dive in and observe recovery.
+
+*Recorded in the simulated demo. No Kubernetes access or real cluster changes.*
 
 **[▶ Try the live demo](https://gabriel-dantas98.github.io/kubeaquarium/)** — runs entirely in your browser with synthetic cluster data, no Kubernetes required.
 

@@ -27,9 +27,10 @@
     "build": "remotion bundle",
     "capture": "node scripts/capture-demo.mjs",
     "render": "remotion render src/index.ts KubeAquariumDemo ../docs/video/kubeaquarium-demo.mp4 --codec h264 --pixel-format yuv420p && node scripts/optimize-demo.mjs",
-    "still": "remotion still src/index.ts KubeAquariumDemo ../docs/video/kubeaquarium-demo-poster.png --frame 90",
+    "still": "remotion still src/index.ts KubeAquariumDemo ../docs/video/kubeaquarium-demo-poster.png --frame 135",
     "upgrade": "remotion upgrade",
-    "lint": "eslint src && tsc"
+    "lint": "eslint src && tsc",
+    "preview": "node scripts/make-preview.mjs"
   },
   "sideEffects": [
     "*.css"
