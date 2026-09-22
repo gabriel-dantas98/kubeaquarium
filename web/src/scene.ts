@@ -465,6 +465,7 @@ export class AquariumScene {
       slot.killedAt = undefined;
       slot.matched = this.filter(p);
       slot.baseColor = this.colorFor(p);
+      this.addToBubble(p.namespace, p.uid);
     }
 
     this.writeRenderColor(slot);

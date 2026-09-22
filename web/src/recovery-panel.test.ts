@@ -10,10 +10,12 @@ function operation(phase: RecoveryPhase, message: string, candidateUid?: string)
   const target: PodView = {
     uid: 'old', name: 'checkout-old', namespace: 'payments', node: 'node-1',
     phase: 'Running', ready: false, restartCount: 0, reason: '', cpuMillis: 10,
-    memMib: 16, createdAt: '2026-09-10T12:00:00.000Z', deletionTimestamp: '', controller: null,
+    memMib: 16, createdAt: '2026-09-10T12:00:00.000Z', deletionTimestamp: '',
+    controller: { apiVersion: 'apps/v1', kind: 'ReplicaSet', name: 'checkout-demo', uid: 'checkout-demo-rs' },
   };
   return {
     id: `${phase}-${message}`, target, phase, startedAt: 0, message, candidateUid,
+    candidate: candidateUid ? { ...target, uid: candidateUid, name: 'checkout-new' } : undefined,
     baselineUids: new Set(), candidateUids: new Set(), observationIncomplete: false,
   };
 }
@@ -38,6 +40,15 @@ export function runRecoveryPanelTests(): void {
     panel.render([operation(phase, message)]);
     assert(root.textContent?.includes(message), `${phase} text is visible`);
   }
+  const card = root.querySelector('article')!;
+  assert(card.dataset.targetControllerUid === 'checkout-demo-rs', 'target controller UID is available as recovery evidence');
+  assert(card.dataset.targetControllerKind === 'ReplicaSet', 'target controller kind is available as recovery evidence');
+  assert(card.dataset.targetControllerName === 'checkout-demo', 'target controller name is available as recovery evidence');
+  panel.render([operation('ready', 'ready', 'new')]);
+  const candidateCard = root.querySelector('article')!;
+  assert(candidateCard.dataset.candidateControllerUid === 'checkout-demo-rs', 'candidate controller UID is available as recovery evidence');
+  assert(candidateCard.dataset.candidateControllerKind === 'ReplicaSet', 'candidate controller kind is available as recovery evidence');
+  assert(candidateCard.dataset.candidateControllerName === 'checkout-demo', 'candidate controller name is available as recovery evidence');
 
   const unsafe = '<img src=x onerror=window.__unsafe=true>';
   panel.render([operation('failed', unsafe)]);

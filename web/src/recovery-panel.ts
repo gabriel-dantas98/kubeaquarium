@@ -12,7 +12,7 @@ export class RecoveryPanel {
     root.setAttribute('aria-live', 'polite');
   }
   render(operations: readonly RecoveryOperation[]) {
-    const signature = `${this.expanded}:${operations.map(o => `${o.id}:${o.phase}:${o.message}:${o.candidateUid ?? ''}`).join('|')}`;
+    const signature = `${this.expanded}:${operations.map(o => `${o.id}:${o.phase}:${o.message}:${o.candidateUid ?? ''}:${o.target.controller?.uid ?? ''}:${o.candidate?.controller?.uid ?? ''}`).join('|')}`;
     if (signature === this.signature) return;
     this.signature = signature;
     this.root.replaceChildren(); const visible = this.expanded ? operations : operations.slice(-5);
@@ -21,6 +21,16 @@ export class RecoveryPanel {
       card.dataset.operationPhase = operation.phase;
       card.dataset.targetUid = operation.target.uid;
       if (operation.candidateUid) card.dataset.candidateUid = operation.candidateUid;
+      if (operation.target.controller) {
+        card.dataset.targetControllerUid = operation.target.controller.uid;
+        card.dataset.targetControllerKind = operation.target.controller.kind;
+        card.dataset.targetControllerName = operation.target.controller.name;
+      }
+      if (operation.candidate?.controller) {
+        card.dataset.candidateControllerUid = operation.candidate.controller.uid;
+        card.dataset.candidateControllerKind = operation.candidate.controller.kind;
+        card.dataset.candidateControllerName = operation.candidate.controller.name;
+      }
 
       const title = document.createElement('strong');
       title.textContent = `${operation.target.namespace}/${operation.target.name}`;

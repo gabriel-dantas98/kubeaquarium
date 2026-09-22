@@ -258,7 +258,8 @@ Run `npm --prefix web run dev -- --host 127.0.0.1 --port 7781`, then open
 `http://127.0.0.1:7781/?demo`. Browser checks use synthetic data:
 
 ```bash
-DEMO_URL='http://127.0.0.1:7781/?demo' node video/scripts/check-navigation.mjs
+export DEMO_URL='http://127.0.0.1:7781/?demo'
+node video/scripts/check-navigation.mjs
 node video/scripts/check-scene.mjs
 node video/scripts/check-radar.mjs
 node video/scripts/check-labels.mjs

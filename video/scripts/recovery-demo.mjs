@@ -24,7 +24,24 @@ export async function blockUnsafeNetwork(page) {
     }
     await route.continue();
   });
+  await page.routeWebSocket("**/api/stream", async (socket) => {
+    violations.push("WebSocket /api/stream");
+    await socket.close({ code: 1008, reason: "API network disabled for demo capture" });
+  });
   return violations;
+}
+
+/** Prove the API WebSocket guard blocks a connection before it can reach a server. */
+export async function verifyApiWebSocketBlocked(page, violations) {
+  const before = violations.length;
+  await page.evaluate(() => new Promise((resolve) => {
+    const socket = new WebSocket(`${location.protocol === 'https:' ? 'wss:' : 'ws:'}//${location.host}/api/stream`);
+    socket.addEventListener('close', resolve, { once: true });
+    socket.addEventListener('error', () => {}, { once: true });
+  }));
+  if (!violations.slice(before).includes("WebSocket /api/stream")) {
+    throw new Error("API stream WebSocket escaped the capture network guard");
+  }
 }
 
 export function assertNoUnsafeNetwork(violations) {

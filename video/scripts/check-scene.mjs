@@ -37,6 +37,16 @@ try {
     const completed=scene.slots.get('3');const completedPos=completed.pos.clone();scene.simulate(.05);check(completed.pos.equals(completedPos),'completed pod moves');
     const states=[...scene.slots.values()].map(slot=>scene.mesh.geometry.getAttribute('instanceState').getX(slot.index));
     check(states.join() === '0,1,2,3',`incorrect instance states ${states}`);
+    const returning={...base,uid:'returning',name:'returning',namespace:'returning',phase:'Running'};
+    scene.rebuildNamespaceBubbles(new Map([['returning',1]]));
+    scene.upsertPod(returning,new Map());
+    scene.reconcilePods(new Set());
+    scene.rebuildNamespaceBubbles(new Map());
+    scene.rebuildNamespaceBubbles(new Map([['returning',1]]));
+    scene.upsertPod(returning,new Map());
+    check(scene.bubbleMembers.get('returning')?.has('returning'),'returning pod remains a bubble member during its removal animation');
+    scene.showOverview();scene.computeNamespaceLabels();
+    check(scene.getNamespaceLabelTargets().find(target=>target.namespace==='returning')?.total===1,'returning pod is counted by the namespace summary');
     scene.showOverview();check(Math.exp(-((scene.scene.fog.density*scene.camera.position.length())**2))>=.5,'overview fog hides cluster');
     const panel=document.getElementById('detail');panel.classList.remove('hidden');
     for(const scale of [.3,3]){scene.slots.get('0').baseScale=scale;scene.focusOnPod('0');scene.camera.updateMatrixWorld();const p=scene.slots.get('0').pos.clone().project(scene.camera);const px=(p.x*.5+.5)*innerWidth;check(px<panel.getBoundingClientRect().left,'focused pod behind detail');const d=scene.camera.position.distanceTo(scene.slots.get('0').pos);const r=scale*1.72;check(r/(Math.sqrt(d*d-r*r)*Math.tan(THREE.MathUtils.degToRad(scene.camera.fov)/2))<=.601,'focused pod exceeds 60%');}

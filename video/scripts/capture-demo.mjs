@@ -1,7 +1,7 @@
 import { mkdir, readdir, rename, rm, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { chromium } from "playwright";
-import { assertNoUnsafeNetwork, blockUnsafeNetwork, requireDemoUrl } from "./recovery-demo.mjs";
+import { assertNoUnsafeNetwork, blockUnsafeNetwork, requireDemoUrl, verifyApiWebSocketBlocked } from "./recovery-demo.mjs";
 
 const root = path.resolve(import.meta.dirname, "..");
 const rawDir = path.join(root, "public", "raw");
@@ -11,6 +11,7 @@ const url = requireDemoUrl();
 const W = 960;
 const H = 540;
 const timeout = 10_000;
+const expectedController = { uid: "demo-rs-checkout", kind: "ReplicaSet", name: "checkout-demo" };
 
 await mkdir(rawDir, { recursive: true });
 await rm(output, { force: true });
@@ -60,9 +61,15 @@ try {
   beat("candidate");
   const ready = await waitForPhase("ready");
   const candidate = await ready.getAttribute("data-candidate-uid");
-  const message = await ready.locator("p").textContent();
-  if (candidate !== "demo-mission-new" || !message?.includes("same controller")) {
-    throw new Error(`Unexpected Ready evidence: candidate=${candidate}, message=${message}`);
+  if (candidate !== "demo-mission-new") {
+    throw new Error(`Unexpected Ready candidate: ${candidate}`);
+  }
+  for (const [field, value] of Object.entries(expectedController)) {
+    const targetController = await ready.getAttribute(`data-target-controller-${field}`);
+    const candidateController = await ready.getAttribute(`data-candidate-controller-${field}`);
+    if (targetController !== value || candidateController !== value) {
+      throw new Error(`Unexpected controller ${field}: target=${targetController}, candidate=${candidateController}, expected=${value}`);
+    }
   }
   beat("ready");
   await page.waitForTimeout(6_000);
@@ -76,6 +83,7 @@ try {
   beat("closing");
   await page.waitForTimeout(3_000);
   assertNoUnsafeNetwork(violations);
+  await verifyApiWebSocketBlocked(page, violations);
   if (errors.length) throw new Error(`Page errors: ${errors.join("\n")}`);
 } finally {
   await context.close();

@@ -1,18 +1,17 @@
 import assert from 'node:assert/strict';
 import { execFile, spawn } from 'node:child_process';
-import { access, mkdir, writeFile } from 'node:fs/promises';
+import { access, mkdir, realpath, writeFile } from 'node:fs/promises';
 import { createWriteStream } from 'node:fs';
 import os from 'node:os';
-import { resolve } from 'node:path';
+import { basename, resolve } from 'node:path';
 import { promisify } from 'node:util';
 import { chromium } from 'playwright';
 
 // This benchmark is deliberately self-contained: every HTTP and WebSocket
 // response is intercepted, and DELETE only changes the in-memory fixture.
 const repo = resolve(import.meta.dirname, '..', '..');
-const baselineWebRoot = '/Users/gdantas/git/gdantas/kubeaquarium/web';
-const baselineRevision = 'e31be2d8ab98346c2af7d54bf983f941dc4c2f7b';
 const target = process.env.BENCH_TARGET ?? 'final';
+const baselineWebRoot = process.env.BENCH_BASELINE_ROOT ? resolve(process.env.BENCH_BASELINE_ROOT) : null;
 const webRoot = target === 'baseline' ? baselineWebRoot : resolve(repo, 'web');
 const output = resolve(process.env.BENCH_OUTPUT ?? `output/playwright/benchmark-${target}`);
 const port = Number(process.env.BENCH_PORT ?? (target === 'baseline' ? 5181 : 5182));
@@ -50,11 +49,17 @@ const podsFor = count => Array.from({ length: count }, (_, index) => ({
 
 async function verifyBaselineSource() {
   if (target !== 'baseline') return null;
-  await access(resolve(baselineWebRoot, 'package.json'));
-  const { stdout } = await execFileAsync('git', ['-C', resolve(baselineWebRoot, '..'), 'rev-parse', 'HEAD']);
+  if (!baselineWebRoot) throw new Error('BENCH_BASELINE_ROOT must point to the baseline web directory when BENCH_TARGET=baseline');
+  const resolvedWebRoot = await realpath(baselineWebRoot);
+  if (basename(resolvedWebRoot) !== 'web') throw new Error(`BENCH_BASELINE_ROOT must name a web directory, got ${resolvedWebRoot}`);
+  await access(resolve(resolvedWebRoot, 'package.json'));
+  const { stdout: repoRootOutput } = await execFileAsync('git', ['-C', resolvedWebRoot, 'rev-parse', '--show-toplevel']);
+  const repoRoot = repoRootOutput.trim();
+  const { stdout: status } = await execFileAsync('git', ['-C', repoRoot, 'status', '--porcelain', '--untracked-files=no']);
+  assert.equal(status.trim(), '', `Baseline tracked source must be clean:\n${status}`);
+  const { stdout } = await execFileAsync('git', ['-C', repoRoot, 'rev-parse', 'HEAD']);
   const revision = stdout.trim();
-  assert.equal(revision, baselineRevision, `Baseline must be ${baselineRevision}; got ${revision}`);
-  return revision;
+  return { webRoot: resolvedWebRoot, repoRoot, revision };
 }
 
 async function waitForServer() {
@@ -285,14 +290,15 @@ async function runScenario(browser, count, round, scenario) {
 }
 
 await mkdir(output, { recursive: true });
-const sourceRevision = await verifyBaselineSource();
+const baselineSource = await verifyBaselineSource();
 const startedAt = new Date().toISOString();
 let server;
 let browser;
 const results = [];
 const state = {
   target,
-  sourceRevision: sourceRevision ?? (await execFileAsync('git', ['-C', repo, 'rev-parse', 'HEAD'])).stdout.trim(),
+  sourceRevision: baselineSource?.revision ?? (await execFileAsync('git', ['-C', repo, 'rev-parse', 'HEAD'])).stdout.trim(),
+  source: baselineSource ?? { webRoot, repoRoot: repo, revision: (await execFileAsync('git', ['-C', repo, 'rev-parse', 'HEAD'])).stdout.trim() },
   webRoot,
   url,
   startedAt,

@@ -3,7 +3,7 @@ import type { PodView, StreamEvent } from './types';
 export type RecoveryPhase = 'requesting' | 'accepted' | 'absent' | 'candidate' | 'ready' | 'failed' | 'unknown' | 'ambiguous' | 'standalone';
 export interface RecoveryOperation {
   id: string; target: PodView; phase: RecoveryPhase; startedAt: number;
-  acceptedAt?: number; absentAt?: number; candidateUid?: string; readyObservedAt?: number;
+  acceptedAt?: number; absentAt?: number; candidateUid?: string; candidate?: PodView; readyObservedAt?: number;
   baselineUids: Set<string>; candidateUids: Set<string>; observationIncomplete: boolean; message: string;
 }
 type State = { operation: RecoveryOperation; absent: boolean; candidates: Map<string, PodView>; seenAdded: Set<string>; gap: boolean; ambiguous: boolean; restartObserved: boolean };
@@ -98,6 +98,7 @@ export class RecoveryTracker {
       }
       const candidate = [...state.candidates.values()][0];
       operation.candidateUid = candidate?.uid;
+      operation.candidate = candidate;
       if (!candidate || !state.absent || !candidate.ready || !!candidate.deletionTimestamp || kind === 'Job' || kind === 'CronJob') operation.readyObservedAt = undefined;
       if (candidate && state.absent && candidate.ready && !candidate.deletionTimestamp && kind !== 'Job' && kind !== 'CronJob') {
         operation.phase = 'ready';

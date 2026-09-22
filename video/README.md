@@ -23,3 +23,12 @@ pnpm still
 Capture writes `public/kubeaquarium-footage.webm` and `public/kubeaquarium-beats.json`. The Remotion composition reads the captured beats and ends two seconds after the final one at 24 FPS. Rendering creates `../docs/video/kubeaquarium-demo.mp4`; the still creates `../docs/video/kubeaquarium-demo-poster.png`.
 
 Review both outputs at 960×540 before publishing: the simulated marker, the Ready conclusion, and all captions must remain legible.
+
+## Visual benchmark
+
+The benchmark uses a separate, clean checkout for the baseline. Set `BENCH_BASELINE_ROOT` to that checkout's `web` directory; the runner records its repository and revision in `metrics.json` and refuses tracked changes.
+
+```bash
+BENCH_TARGET=baseline BENCH_BASELINE_ROOT='/absolute/path/to/baseline/web' node scripts/benchmark-visual.mjs
+BENCH_TARGET=final node scripts/benchmark-visual.mjs
+```

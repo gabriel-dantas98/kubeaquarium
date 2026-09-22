@@ -1,9 +1,13 @@
 import { chromium } from "playwright";
-import { assertNoUnsafeNetwork, blockUnsafeNetwork, requireDemoUrl } from "./recovery-demo.mjs";
+import { assertNoUnsafeNetwork, blockUnsafeNetwork, requireDemoUrl, verifyApiWebSocketBlocked } from "./recovery-demo.mjs";
 
 const url = requireDemoUrl();
 const timeout = 10_000;
-const expected = { targetUid: "demo-mission-old", candidateUid: "demo-mission-new", controller: "ReplicaSet checkout-demo" };
+const expected = {
+  targetUid: "demo-mission-old",
+  candidateUid: "demo-mission-new",
+  controller: { uid: "demo-rs-checkout", kind: "ReplicaSet", name: "checkout-demo" },
+};
 const browser = await chromium.launch({ headless: true });
 const page = await browser.newPage({ viewport: { width: 960, height: 540 } });
 const errors = [];
@@ -34,13 +38,19 @@ try {
   await phase("candidate");
   const ready = await phase("ready");
   const candidate = await ready.getAttribute("data-candidate-uid");
-  const visibleEvidence = await ready.textContent();
   if (candidate !== expected.candidateUid) throw new Error(`Unexpected candidate UID: ${candidate}`);
-  if (!visibleEvidence?.includes("same controller")) throw new Error(`Missing controller evidence for ${expected.controller}`);
+  for (const [field, value] of Object.entries(expected.controller)) {
+    const targetController = await ready.getAttribute(`data-target-controller-${field}`);
+    const candidateController = await ready.getAttribute(`data-candidate-controller-${field}`);
+    if (targetController !== value || candidateController !== value) {
+      throw new Error(`Unexpected controller ${field}: target=${targetController}, candidate=${candidateController}, expected=${value}`);
+    }
+  }
   await mission.getByText("Recovery observed", { exact: true }).waitFor({ state: "visible", timeout });
   assertNoUnsafeNetwork(violations);
+  await verifyApiWebSocketBlocked(page, violations);
   if (errors.length) throw new Error(`Page errors: ${errors.join("\n")}`);
-  console.log(`verified ${expected.targetUid} -> ${expected.candidateUid} (${expected.controller}): accepted, absent, candidate, Ready`);
+  console.log(`verified ${expected.targetUid} -> ${expected.candidateUid} (${expected.controller.kind} ${expected.controller.name}/${expected.controller.uid}): accepted, absent, candidate, Ready`);
 } finally {
   await browser.close();
 }
