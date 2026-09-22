@@ -13,9 +13,9 @@ And when you really need to delete one — there's a submarine.
 [![Go](https://img.shields.io/badge/Go-informers-00ADD8?logo=go&logoColor=white)](internal/k8s)
 [![Three.js](https://img.shields.io/badge/Three.js-instanced-000000?logo=threedotjs&logoColor=white)](web/src)
 
-![kubeaquarium hero](docs/video/kubeaquarium-hero.gif)
+[![kubeaquarium simulated recovery](docs/video/kubeaquarium-demo-poster.png)](docs/video/kubeaquarium-demo.mp4)
 
-*A real missile deleting a real pod — and the ReplicaSet calmly putting it back.*
+*A simulated recovery mission. No Kubernetes access is used in this recording.*
 
 **[▶ Try the live demo](https://gabriel-dantas98.github.io/kubeaquarium/)** — runs entirely in your browser with synthetic cluster data, no Kubernetes required.
 
@@ -27,9 +27,9 @@ And when you really need to delete one — there's a submarine.
 
 `kubectl get pods` tells you *what* is running. kubeaquarium shows you *how it feels*: a healthy
 cluster is a calm blue school of whales; a bad deploy is a bubble full of red, twitching ones.
-Pod size maps to resource requests, so the expensive workloads literally swim heavier than the
-sidecars. It's a real observability tool wearing a game engine costume — filtering, live logs,
-events and YAML included — and it holds 60 FPS while doing it.
+Pod size maps to requested resources (or configured limits when requests are absent), not
+live CPU or memory consumption. It's a real observability tool wearing a game engine costume — filtering, live logs,
+events and YAML included. Frame rate depends on workload, browser and hardware.
 
 ## Install
 
@@ -63,7 +63,8 @@ kubeaquarium can reach. It never writes to the cluster unless you arm the submar
 
 ### The aquarium
 
-Namespaces are wireframe bubbles sized by pod count, laid out on a phyllotaxis spiral. Whale size
+Namespaces are rim-lit bubbles sized by pod count, with stable centers during the session.
+Growing namespaces share available space; dense bubbles retain all pods in search and radar. Whale size
 scales with `cpu_requests + memory_requests` (log-mapped, ~5× visual range), so a 2-CPU worker is
 unmissable next to its sidecars. Status is color:
 
@@ -72,9 +73,9 @@ unmissable next to its sidecars. Status is color:
 | Running + Ready | Docker blue |
 | Pending / NotReady | desaturated blue |
 | CrashLoopBackOff / ImagePullBackOff / Error / Failed | red, jittering |
-| Succeeded | green |
+| Succeeded | green, stationary |
 | Terminating | shrinks, sinks, disappears |
-| Killed by missile | pops (1.15×), then implodes |
+| Deletion observed after a missile request | briefly shrinks and disappears |
 
 ![overview](docs/screenshots/overview.jpg)
 
@@ -99,7 +100,10 @@ Multiple terms AND together.
 ### Resource radar
 
 <kbd>Cmd/Ctrl</kbd> + <kbd>K</kbd> opens a sonar-styled command palette: fuzzy-ranked pods by
-name, namespace, phase, node or reason. Select one and the camera flies to it.
+name, namespace, phase, node or reason. Markers use actual scene positions relative to the
+camera heading; choose a range of 50, 100, 250 or 500 units. Arrows indicate relative altitude.
+Pods without a scene position remain searchable and show “Position unavailable”.
+Select a marker or a result to inspect the same pod.
 
 ![radar](docs/screenshots/radar.jpg)
 
@@ -116,23 +120,37 @@ Click any whale — it freezes in place and opens its dossier:
 
 ### Dive mode
 
-Press <kbd>F</kbd> to leave orbit and pilot a submarine in first person (WASD + mouse,
-Space/Shift for depth). Engine bubbles, hull collision, the works.
+Press <kbd>F</kbd> or **Dive** to pilot the submarine. Hold the right mouse button and drag
+to look; use WASD to move and Space/Shift to rise or descend. The reticle stays centered.
+**Overview** or <kbd>O</kbd> frames the whole cluster. Escape closes the frontmost panel first.
+Typing in panels and losing window focus stop movement.
+
+Camera settings provide look sensitivity, vertical inversion and reduced motion. Reduced
+motion starts from your system preference and disables camera shake, inertia, status pulses
+and impact flashes. Sound is off by default; enable **Sound** to hear short interaction cues.
+These preferences stay in this browser. Audio resumes after returning to the tab only after a gesture.
 
 ![dive](docs/screenshots/dive.jpg)
 
 ### Attack mode ⚠️
 
-<kbd>Cmd/Ctrl</kbd> + <kbd>L</kbd> arms the missiles. This is the part your SRE lead should know
-about: a missile hit performs a real `DELETE` on the pod through your active context. The whale
-pops, a kill feed entry logs the elimination FPS-style — and then Kubernetes does the beautiful
-part: the ReplicaSet spawns a replacement and a new whale swims in. Chaos engineering with a
-periscope.
+<kbd>Cmd/Ctrl</kbd> + <kbd>L</kbd> arms the missiles. In live mode, a hit requests a real
+pod deletion using the exact pod UID as a precondition. HTTP acceptance means the request
+was accepted; it does not prove deletion or recovery.
 
-![explosion](docs/screenshots/explosion.jpg)
+The recovery panel follows the observed sequence: request accepted, original pod absent,
+new candidate with the same controller, then candidate Ready. Multiple candidates or
+concurrent targets are reported as ambiguous. Snapshots and reconnects can establish current
+state but cannot recover missed timing; incomplete observations are marked accordingly.
+Standalone pods have no controller-managed replacement expectation. A container restart
+with the same UID is not counted as a replacement. This is observed evidence, not proof that
+the request caused a replacement.
 
-Demo mode (the [hosted page](https://gabriel-dantas98.github.io/kubeaquarium/)) fakes the
-deletion locally, so feel free to go full torpedo.
+![simulated recovery](docs/video/kubeaquarium-demo-poster.png)
+
+Demo mode (`?demo`, including the hosted page) uses synthetic data and local operations.
+The visible **SIMULATED** mission walks through finding a failed pod, inspecting it, firing
+and observing its replacement. It can be skipped or restarted without accessing Kubernetes.
 
 ---
 
@@ -159,20 +177,20 @@ deletion locally, so feel free to go full torpedo.
   selectors applied server-side) and projects each pod into a compact `PodView`: name, namespace,
   phase, reason, readiness, node, and summed cpu/mem requests (falling back to limits).
 - **`internal/server`** — on connect, a client gets one full snapshot, then incremental
-  add/update/delete events over WebSocket. Backpressure drops deltas — the next snapshot
-  reconciles. Pod operations (YAML, events, chunked log streaming, delete) are plain HTTP.
+  add/update/delete events and periodic snapshots over WebSocket. Slow clients are disconnected
+  and reconnect with a fresh snapshot. Pod operations (YAML, events, chunked log streaming, delete) are plain HTTP.
 - **`web/`** — TypeScript + Three.js, no framework. The store applies events; the scene maps each
-  pod to an instance slot; the HUD (filter, radar, detail panel, labels, kill feed) is plain DOM.
+  pod to an instance slot; the HUD (filter, radar, detail panel, labels, recovery panel) is plain DOM.
 - **Demo mode** — `?demo` swaps the WebSocket for a synthetic in-browser stream with the same
   event shape. That's the entire GitHub Pages deployment.
 
-## How it stays at 60 FPS
+## Rendering and performance
 
 The whole animal kingdom is **one `InstancedMesh`** — one draw call for up to 20k whales, with
 per-instance color for status tinting. From there, the tricks stack up:
 
 1. **Vertex-shader animation.** The tail wave is computed in the vertex shader from a `uTime`
-   uniform and per-instance phase. The CPU animates zero whales.
+   uniform and per-instance state. CPU simulation updates positions.
 2. **Boids with a spatial hash.** The swim sim runs per namespace bubble; separation queries use
    a uniform 3D grid instead of O(n²) neighbor checks. Past 1,200 instances — or if FPS dips
    below 24 — it degrades gracefully to cheap bounded wandering.
@@ -181,8 +199,7 @@ per-instance color for status tinting. From there, the tricks stack up:
 4. **Adaptive resolution.** Renderer pixel ratio steps down under sustained load and back up when
    the scene calms down.
 5. **Pooled everything.** Projectiles, explosion fragments, and bubbles live in fixed-size
-   instanced pools with in-place compaction; hot paths reuse preallocated temp vectors —
-   no per-frame allocations, no GC hitches.
+   instanced pools with in-place compaction. Labels use bounded reusable DOM pools.
 6. **Label culling.** Pod labels are DOM nodes, so only the nearest few render, they're pooled and
    reused, and overlapping ones get collision-culled.
 7. **No CSS timelines for critical UI.** Under heavy WebGL load, browsers throttle CSS
@@ -234,3 +251,23 @@ MIT — see [LICENSE](LICENSE).
 *If a missile takes out the wrong pod in production, the submarine did it.* 🫡
 
 </div>
+
+## Verifying the experience locally
+
+Run `npm --prefix web run dev -- --host 127.0.0.1 --port 7781`, then open
+`http://127.0.0.1:7781/?demo`. Browser checks use synthetic data:
+
+```bash
+DEMO_URL='http://127.0.0.1:7781/?demo' node video/scripts/check-navigation.mjs
+node video/scripts/check-scene.mjs
+node video/scripts/check-radar.mjs
+node video/scripts/check-labels.mjs
+node video/scripts/check-audio.mjs
+node video/scripts/test-recovery.mjs
+node video/scripts/verify-recovery.mjs
+```
+
+The scene and radar checks cover layout bounds, pod states, focus, impact budgets and
+50 refresh cycles; the labels check covers transient identities and bounded DOM reuse.
+Full performance evidence is recorded separately with its machine, browser, effective DPR
+and sampling protocol. Capacity limits are not a frame-rate guarantee.
