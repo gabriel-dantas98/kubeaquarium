@@ -892,7 +892,7 @@ export class AquariumScene {
     });
     this.submarineKick = this.reducedMotion ? 0 : 1;
     this.onFire?.();
-    this.spawnImpactBubbles(pos, vel.clone().normalize(), 4);
+    if (!this.reducedMotion) this.spawnImpactBubbles(pos, vel.clone().normalize(), 4);
   }
 
   /** Pod under the crosshair, using the same tolerant pick as dive-mode clicks. */
@@ -954,8 +954,8 @@ export class AquariumScene {
         this.spawnImpactBubbles(projectile.pos, projectile.vel.clone().normalize(), 6);
         continue;
       }
-      // Cheap glowing trail: shed a short-lived bubble each frame.
-      this.addParticle(
+      // Decorative trails are omitted when motion is reduced.
+      if (!this.reducedMotion) this.addParticle(
         projectile.pos.clone(),
         projectile.vel.clone().multiplyScalar(-0.03),
         0.3 + Math.random() * 0.15,
@@ -1009,7 +1009,7 @@ export class AquariumScene {
     this.resolveSubmarineCollisions();
     this.animateSubmarine(dt);
     const now = performance.now() / 1000;
-    if (now >= this.nextBubbleAt) {
+    if (!this.reducedMotion && now >= this.nextBubbleAt) {
       this.nextBubbleAt = now + 0.045;
       this.updateDiveBasis();
       const base = this.camera.position.clone()
@@ -1075,6 +1075,7 @@ export class AquariumScene {
   }
 
   private resolveSubmarineCollisions() {
+    if (this.hybrid.isInputBlocked) return;
     const subRadius = 1.1;
     const pos = this.camera.position;
     for (const slot of this.slots.values()) {
@@ -1086,9 +1087,6 @@ export class AquariumScene {
         pos.addScaledVector(this.dummyPos.normalize(), minDist - dist);
       }
     }
-    const worldLimit = 205;
-    const fromCenter = pos.length();
-    if (fromCenter > worldLimit) pos.multiplyScalar(worldLimit / fromCenter);
   }
 
   private spawnImpactBubbles(origin: THREE.Vector3, normal: THREE.Vector3, count: number) {
@@ -1101,7 +1099,7 @@ export class AquariumScene {
       this.addParticle(
         origin.clone(),
         normal.clone().multiplyScalar(-1.4 - Math.random() * 2.4).add(spread),
-        0.7 + Math.random() * 0.8,
+        this.reducedMotion ? .25 : 0.7 + Math.random() * 0.8,
         0.35 + Math.random() * 0.55,
       );
     }

@@ -29,6 +29,11 @@ try {
     await mission.getByRole('button', { name: 'Inspect failure' }).click();
     await mission.getByRole('button', { name: 'Prepare submarine' }).click();
     await page.waitForFunction(() => window.__kubeaquarium?.diveMode === true, { timeout: 5000 });
+    await mission.locator('p').click();
+    await page.waitForTimeout(100);
+    if (await page.evaluate(() => window.__kubeaquarium.projectiles !== 0) || await page.locator('[data-operation-phase]').count() !== 0) {
+      throw new Error('clicking mission copy fired a simulated delete');
+    }
     await page.mouse.click(640, 360);
     await page.locator('[data-operation-phase="ready"][data-target-uid="demo-mission-old"]').waitFor({ timeout: 6000 });
     if (!await mission.getByText('Fire a simulated request').isVisible()) throw new Error(`guide advanced before delayed DELETE acceptance: ${await mission.textContent()}`);

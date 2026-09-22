@@ -162,10 +162,6 @@ function isEditing(target: EventTarget | null): boolean {
   return !!el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable);
 }
 
-function isInteractive(target: EventTarget | null): boolean {
-  const el = target as HTMLElement | null;
-  return !!el?.closest('button,input,select,textarea,a,[role="button"],[role="listbox"],.detail,.radar,.search');
-}
 
 function setAttackMode(enabled: boolean) {
   attackMode = enabled;
@@ -492,7 +488,7 @@ window.addEventListener('pointermove', (e) => {
   moveReticle(e.clientX, e.clientY);
 });
 window.addEventListener('pointerdown', (e) => {
-  if (e.button !== 0 || !attackMode || !scene.isDiving || isInteractive(e.target)) return;
+  if (e.target !== canvas || e.button !== 0 || !attackMode || !scene.isDiving) return;
   if (!connected || !synchronized || radar.isOpen || search.isOpen || detail.isOpen || preferencesPanel.open) return;
   moveReticle(window.innerWidth/2, window.innerHeight/2);
   e.preventDefault();

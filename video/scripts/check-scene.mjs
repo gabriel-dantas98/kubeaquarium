@@ -45,8 +45,20 @@ try {
     scene.rebuildNamespaceBubbles(new Map([['returning',1]]));
     scene.upsertPod(returning,new Map());
     check(scene.bubbleMembers.get('returning')?.has('returning'),'returning pod remains a bubble member during its removal animation');
-    scene.showOverview();scene.computeNamespaceLabels();
+    scene.showOverview();scene.camera.updateMatrixWorld();scene.computeNamespaceLabelTargets();
     check(scene.getNamespaceLabelTargets().find(target=>target.namespace==='returning')?.total===1,'returning pod is counted by the namespace summary');
+    scene.rebuildNamespaceBubbles(new Map([['test',4],['returning',1]]));
+    for (const [i,phase] of ['Running','Pending','Failed','Succeeded'].entries()) scene.upsertPod({...base,uid:String(i),name:String(i),phase},new Map());
+    scene.camera.position.set(500, 20, 500);
+    const distantPose = scene.camera.position.clone();
+    scene.resolveSubmarineCollisions();
+    check(scene.camera.position.equals(distantPose), 'dive clamps a large cluster to the old world radius');
+    scene.setInputBlocked(true);
+    scene.camera.position.copy(scene.slots.get('0').pos).add(new THREE.Vector3(.1, 0, 0));
+    const blockedPose = scene.camera.position.clone();
+    scene.resolveSubmarineCollisions();
+    check(scene.camera.position.equals(blockedPose), 'pod collision moves camera while a panel blocks input');
+    scene.setInputBlocked(false);
     scene.showOverview();check(Math.exp(-((scene.scene.fog.density*scene.camera.position.length())**2))>=.5,'overview fog hides cluster');
     const panel=document.getElementById('detail');panel.classList.remove('hidden');
     for(const scale of [.3,3]){scene.slots.get('0').baseScale=scale;scene.focusOnPod('0');scene.camera.updateMatrixWorld();const p=scene.slots.get('0').pos.clone().project(scene.camera);const px=(p.x*.5+.5)*innerWidth;check(px<panel.getBoundingClientRect().left,'focused pod behind detail');const d=scene.camera.position.distanceTo(scene.slots.get('0').pos);const r=scale*1.72;check(r/(Math.sqrt(d*d-r*r)*Math.tan(THREE.MathUtils.degToRad(scene.camera.fov)/2))<=.601,'focused pod exceeds 60%');}

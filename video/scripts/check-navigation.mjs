@@ -163,6 +163,32 @@ try {
   const invertedVertical = await verticalDelta(true);
   assert.ok(normalVertical * invertedVertical < 0, 'invert vertical look did not reverse pitch');
 
+  await page.locator('#overview-toggle').click();
+  await page.waitForTimeout(200);
+  const pick = await page.evaluate(async () => {
+    window.__kubeaquarium.pause();
+    const THREE = await import('/node_modules/.vite/deps/three.js');
+    const pose = window.__kubeaquarium.navigationDebug();
+    const camera = new THREE.PerspectiveCamera(58, innerWidth / innerHeight, .1, 10000);
+    camera.position.fromArray(pose.position);
+    camera.lookAt(camera.position.clone().add(new THREE.Vector3().fromArray(pose.direction)));
+    camera.updateMatrixWorld();
+    return window.__kubeaquarium.slotsDebug().map(slot => {
+      const world = new THREE.Vector3().fromArray(slot.pos);
+      const projected = world.clone().project(camera);
+      return { x: (projected.x * .5 + .5) * innerWidth, y: (-projected.y * .5 + .5) * innerHeight,
+        z: projected.z, size: slot.scale / world.distanceTo(camera.position) };
+    }).filter(point => point.z > -1 && point.z < 1 && point.x > 350 && point.x < innerWidth - 80 && point.y > 100 && point.y < innerHeight - 180)
+      .sort((a, b) => b.size - a.size)[0];
+  });
+  assert.ok(pick, 'no visible pod available for the short-click regression');
+  await page.mouse.move(pick.x, pick.y);
+  await page.mouse.down();
+  await page.mouse.move(pick.x + 1, pick.y);
+  await page.mouse.up();
+  await page.waitForFunction(() => !document.getElementById('detail').classList.contains('hidden'));
+  await page.evaluate(() => window.__kubeaquarium.resume());
+
   assert.deepEqual(errors, [], `page errors: ${errors.map(String).join('\n')}`);
 } catch (error) {
   await page.screenshot({ path: 'navigation-failure.png' });
