@@ -77,7 +77,7 @@ unmissable next to its sidecars. Status is color:
 | Terminating | shrinks, sinks, disappears |
 | Deletion observed after a missile request | briefly shrinks and disappears |
 
-![overview](docs/screenshots/overview.jpg)
+![overview](docs/screenshots/visual-feedback/1600x900-overview.png)
 
 ### k9s-style filtering
 
@@ -95,7 +95,7 @@ camera to the closest match.
 
 Multiple terms AND together.
 
-![filter](docs/screenshots/filter.jpg)
+![filter](docs/screenshots/visual-feedback/1600x900-filter.png)
 
 ### Resource radar
 
@@ -105,7 +105,7 @@ camera heading; choose a range of 50, 100, 250 or 500 units. Arrows indicate rel
 Pods without a scene position remain searchable and show “Position unavailable”.
 Select a marker or a result to inspect the same pod.
 
-![radar](docs/screenshots/radar.jpg)
+![radar](docs/screenshots/visual-feedback/1280x720-radar.png)
 
 ### Detail panel
 
@@ -116,7 +116,7 @@ Click any whale — it freezes in place and opens its dossier:
 - **YAML** — pod spec with `managedFields` stripped
 - **Logs** — live streaming (HTTP chunked), container picker, follow toggle
 
-![detail](docs/screenshots/detail.jpg)
+![detail](docs/screenshots/visual-feedback/1600x900-focus.png)
 
 ### Dive mode
 
@@ -130,7 +130,7 @@ motion starts from your system preference and disables camera shake, inertia, st
 and impact flashes. Sound is off by default; enable **Sound** to hear short interaction cues.
 These preferences stay in this browser. Audio resumes after returning to the tab only after a gesture.
 
-![dive](docs/screenshots/dive.jpg)
+![dive](docs/screenshots/visual-feedback/1280x720-dive.png)
 
 ### Attack mode ⚠️
 

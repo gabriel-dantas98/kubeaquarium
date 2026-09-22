@@ -32,7 +32,7 @@
 | recovery_plan | [Recuperação e demo](2026-09-10-recovery-demo.md) | Contrato, exclusão, reconciliação, missão e vídeo |
 | Coordenador | Este documento e spec | Dependências, arbitragem de arquivos e verificação integrada |
 
-Esta rodada entrega planejamento revisado. Checkboxes de implementação permanecem abertas; subagentes de planejamento não alteram código do produto.
+Este documento foi criado na rodada de planejamento. A implementação foi retomada em setembro de 2026 na branch `codex/game-experience`; o [registro de validação](../../validation/game-experience-2026-09-22.md) reúne entregas, verificações e limitações atuais. Os subplanos preservam seus checklists originais como critérios de referência.
 
 ## Alternativas e decisão
 
@@ -44,48 +44,50 @@ Esta rodada entrega planejamento revisado. Checkboxes de implementação permane
 
 ### Onda 0 — baseline e contratos
 
-- [ ] Coordenador registra revisão Git, estado de trabalho, navegador/versão, viewport, DPR e máquina. Preservar AGENTS.md preexistente não rastreado e mudanças do usuário.
+- [x] Coordenador registra revisão Git, estado de trabalho, navegador/versão, viewport, DPR e máquina. Preservar AGENTS.md preexistente não rastreado e mudanças do usuário.
 - [ ] Agente visual cria e executa baseline reproduzível em demo antes de modificar shader, labels ou efeitos.
-- [ ] Agente de recuperação fecha tipos Go/TS, UID precondition e casos de eventos fora de ordem; alterações em types.ts e demo.ts são exclusivas dessa frente.
-- [ ] Coordenador verifica que nomes e assinaturas dos módulos novos nos três planos não conflitam.
+- [x] Agente de recuperação fecha tipos Go/TS, UID precondition e casos de eventos fora de ordem; alterações em types.ts e demo.ts são exclusivas dessa frente.
+- [x] Coordenador verifica que nomes e assinaturas dos módulos novos nos três planos não conflitam.
 
 **Entrega:** evidência inicial salva e contratos implementáveis definidos. Nenhuma medição histórica é apresentada como baseline desta execução.
 
+**Ajuste de execução:** o baseline completo foi medido posteriormente em um checkout limpo e imutável de `e31be2d`, com o mesmo runner usado na versão final. Portanto, a ordem literal “executar antes de modificar” não foi cumprida; a separação das fontes preserva a comparação com o código anterior.
+
 ### Onda 1 — interação e estados verdadeiros
 
-- [ ] Agente de navegação corrige arbitragem de teclado, perda de foco, Escape, drag-versus-click e pilotagem.
-- [ ] Agente de recuperação implementa projeção do owner/readiness e exclusão com UID, com testes Go e eventos simulados.
-- [ ] Agente visual corrige hierarquia de camadas e política de rótulos em arquivos próprios após baseline.
-- [ ] Coordenador integra chamadas em main.ts e scene.ts uma frente por vez; roda typecheck, build e testes relevantes após integração.
+- [x] Agente de navegação corrige arbitragem de teclado, perda de foco, Escape, drag-versus-click e pilotagem.
+- [x] Agente de recuperação implementa projeção do owner/readiness e exclusão com UID, com testes Go e eventos simulados.
+- [x] Agente visual corrige hierarquia de camadas e política de rótulos em arquivos próprios após baseline.
+- [x] Coordenador integra chamadas em main.ts e scene.ts uma frente por vez; roda typecheck, build e testes relevantes após integração.
 
 **Entrega:** digitar não pilota; painéis não recebem rótulos da cena por cima; API aceita uma exclusão sem anunciar remoção antecipadamente; erros ficam visíveis.
 
 ### Onda 2 — espaço legível e navegável
 
-- [ ] Agente de navegação implementa posicionamento estável dos namespaces e retorno à visão geral.
-- [ ] Após liberar namespaces.ts, agente visual aplica contornos e transição interior/exterior.
-- [ ] Agente de navegação conecta sonar a coordenadas reais e sinaliza altura/alcance/alvo.
-- [ ] Coordenador integra enquadramento considerando painel lateral, resumos distantes e preferências de conforto.
+- [x] Agente de navegação implementa posicionamento estável dos namespaces e retorno à visão geral.
+- [x] Após liberar namespaces.ts, agente visual aplica contornos e transição interior/exterior.
+- [x] Agente de navegação conecta sonar a coordenadas reais e sinaliza altura/alcance/alvo.
+- [x] Coordenador integra enquadramento considerando painel lateral, resumos distantes e preferências de conforto.
 - [ ] Comparar capturas overview/filter/radar/detail/dive nas mesmas condições do baseline.
 
 **Entrega:** mudança no número de pods não reposiciona namespaces existentes; usuário encontra e reencontra um alvo; dentro de uma bolha a grade não domina a visão.
 
 ### Onda 3 — recuperação observada
 
-- [ ] Agente de recuperação implementa tracker e reconciliação, sem confundir pods existentes com substitutos.
-- [ ] Exercitar exclusão concorrente, pod sem owner, novo UID com mesmo nome, eventos perdidos, reconexão, timeout e erro HTTP.
-- [ ] Coordenador conecta apresentação dos estados ao tracker; somente confirmação observada dispara mensagem correspondente.
-- [ ] Agente visual associa animações de saúde e recuperação aos estados confirmados.
+- [x] Agente de recuperação implementa tracker e reconciliação, sem confundir pods existentes com substitutos.
+- [x] Exercitar exclusão concorrente, pod sem owner, novo UID com mesmo nome, eventos perdidos, reconexão, timeout e erro HTTP.
+- [x] Coordenador conecta apresentação dos estados ao tracker; somente confirmação observada dispara mensagem correspondente.
+- [x] Agente visual associa animações de saúde e recuperação aos estados confirmados.
 
 **Entrega:** operação tem resultado legível e a aplicação explicita incerteza quando a evidência é incompleta. Tempo de recuperação só aparece quando sua origem temporal é conhecida.
 
 ### Onda 4 — impacto, som e demonstração
 
-- [ ] Agente visual refina impacto com pools limitados e áudio opcional, incluindo mute/movimento reduzido.
-- [ ] Agente de recuperação implementa cenário determinístico e missão pulável/reiniciável na demo.
-- [ ] Atualizar captura para recusar execução real e esperar transições observadas, sem mascarar o contexto de um cluster real.
-- [ ] Atualizar composição do vídeo com investigação, ação simulada e recuperação; renderizar e inspecionar resultado.
-- [ ] Coordenador executa verificação final e atualiza README para os controles/limites efetivos.
+- [x] Agente visual refina impacto com pools limitados e áudio opcional, incluindo mute/movimento reduzido.
+- [x] Agente de recuperação implementa cenário determinístico e missão pulável/reiniciável na demo.
+- [x] Atualizar captura para recusar execução real e esperar transições observadas, sem mascarar o contexto de um cluster real.
+- [x] Atualizar composição do vídeo com investigação, ação simulada e recuperação; renderizar e inspecionar resultado.
+- [x] Coordenador executa verificação final e atualiza README para os controles/limites efetivos.
 
 **Entrega:** uma sessão demonstrável completa, desde localizar falha até observar recuperação, acompanhada de vídeo e evidência de desempenho.
 
@@ -138,16 +140,16 @@ O build temporário verifica frontend sem sobrescrever dist rastreado. Na entreg
 
 Checklist comportamental final:
 
-- [ ] Filtro/radar recebem digitação sem movimentar câmera.
-- [ ] Mouse orienta mergulho; perder foco não deixa movimento preso.
-- [ ] Seleção permanece visível ao lado de detalhes; radar não é coberto por labels.
-- [ ] Alterar réplicas preserva centros dos namespaces existentes.
-- [ ] Sonar representa direção real, inclusive rotação e diferenças de altura.
-- [ ] HTTP aceito e remoção observada têm mensagens diferentes.
-- [ ] Recuperação não reutiliza uma réplica anterior como substituta.
-- [ ] Reconexão/lacuna não produz duração fictícia.
-- [ ] Demo e captura não enviam DELETE real.
-- [ ] Som desativado permanece silencioso; movimento reduzido elimina tremor.
+- [x] Filtro/radar recebem digitação sem movimentar câmera.
+- [x] Mouse orienta mergulho; perder foco não deixa movimento preso.
+- [x] Seleção permanece visível ao lado de detalhes; radar não é coberto por labels.
+- [x] Alterar réplicas preserva centros dos namespaces existentes.
+- [x] Sonar representa direção real, inclusive rotação e diferenças de altura.
+- [x] HTTP aceito e remoção observada têm mensagens diferentes.
+- [x] Recuperação não reutiliza uma réplica anterior como substituta.
+- [x] Reconexão/lacuna não produz duração fictícia.
+- [x] Demo e captura não enviam DELETE real.
+- [x] Som desativado permanece silencioso; movimento reduzido elimina tremor.
 - [ ] Baseline e resultado registram p50/p95/p99 brutos e resolução efetiva.
 
 Critério de encerramento: cada checkbox tem evidência ou limitação explícita; não declarar a onda completa apenas por build bem-sucedido. Alterações puramente documentais desta rodada são verificadas por revisão de cobertura, links e consistência, sem executar a suíte do produto desnecessariamente.

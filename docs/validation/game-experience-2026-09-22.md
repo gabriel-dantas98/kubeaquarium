@@ -29,13 +29,24 @@ Não houve publicação, merge ou operação em cluster real. As interações de
 | Missão com aceite HTTP atrasado e duas repetições | `video/scripts/check-demo-mission.mjs` |
 | Captura simulada | `video/scripts/verify-recovery.mjs`; lint, render e still em `video` |
 
-A revisão independente encontrou lacunas na proteção WebSocket da captura, na asserção exata do controlador e na portabilidade do benchmark. A correção consolidada e sua reverificação estão em andamento.
+A revisão independente encontrou lacunas na proteção WebSocket da captura, na asserção exata do controlador e na portabilidade do benchmark. As três foram corrigidas e a reverificação ficou limpa. Os testes integrados também cobrem disparo somente sobre o canvas, seleção com gesto de um pixel, retorno de namespace e limites de câmera. Veja [correções e revisão](final-review-fixes.md). A inspeção das capturas também revelou o seletor de alcance ocupando uma coluna indevida no radar. O controle foi movido para o cabeçalho, os marcadores receberam estilo explícito e a distância/altitude ficou visível. A regressão agora é verificada com DOM e CSS nos tamanhos 1280×720 e 640×800.
+
+## Evidência visual
+
+Foram geradas 16 capturas da demo em 1600×900 e 1280×720: overview, filtro, radar, foco, mergulho e impacto, incluindo mergulho/impacto com movimento reduzido. O [manifesto](../screenshots/visual-feedback/manifest.json) registra ausência de erros e de interseções entre rótulos/painéis. Capturas de impacto congelam o frame imediatamente após o acerto; a janela curta pode limitar a quantidade de partículas visíveis.
+
+- [Overview](../screenshots/visual-feedback/1600x900-overview.png)
+- [Filtro](../screenshots/visual-feedback/1600x900-filter.png)
+- [Radar](../screenshots/visual-feedback/1280x720-radar.png) e [layout estreito](../screenshots/visual-feedback/radar-640x800.png)
+- [Foco](../screenshots/visual-feedback/1600x900-focus.png)
+- [Impacto normal](../screenshots/visual-feedback/1280x720-impact.png) e [reduzido](../screenshots/visual-feedback/1280x720-impact-reduced.png)
+- [Vídeo de aproximadamente 31 segundos](../video/kubeaquarium-demo.mp4)
 
 ## Desempenho
 
 O protocolo completo compara 200, 1.200 e 2.500 pods, cinco cenários e três rodadas por versão, com 10 segundos de aquecimento e 30 segundos de amostragem. As versões são medidas sequencialmente para evitar concorrência de GPU entre testes. Amostras curtas servem apenas para validar o script, não para afirmar melhoria de FPS.
 
-Medição longa e teste de 50 ciclos ainda em andamento; resultados finais serão vinculados aqui.
+O teste de 50 ciclos passou, alternando 25 ciclos normais e 25 com movimento reduzido, com 50 exclusões simuladas. Após o aquecimento, o DOM variou de 205 a 207 elementos; as geometrias permaneceram em 27 e as texturas em zero. A comparação completa de frame-time ainda está em andamento; os resultados serão vinculados aqui.
 
 ## Limites da validação
 
@@ -48,13 +59,13 @@ Medição longa e teste de 50 ciclos ainda em andamento; resultados finais serã
 
 As decisões abaixo preservam a ordem do registro da execução e explicitam o custo de revisá-las:
 
-- Execute parallel independent modules as explicitly requested, serial shared-file integration by coordinator — avoids conflicting edits — cost if wrong: integration rework.
-- Use sibling worktree and existing dependency symlinks — preserve user working tree and avoid redundant installs — cost if wrong: install isolated dependencies.
-- Supersede earlier parallel implementation ruling with sequential fresh implementers and separate reviews per invoked skill — user requested smaller-model SDD — cost if wrong: longer elapsed time.
-- Preserve and verify existing sibling worktree changes before new implementation — avoids losing prior work — cost if wrong: extra audit time.
-- Commit preexisting implementation as an explicit unverified checkpoint before task fixes — makes each subsequent review diff scoped — cost if wrong: checkpoint needs rewriting before merge.
-- Planning-only prohibitions in September 10 subplans describe their authoring session; current explicit request authorizes implementation and local validation — no publishing or real cluster deletion — cost if wrong: local changes to discard.
-- Use Terra for final whole-branch review too, superseding earlier Astra selection — user explicitly requested smaller models, which overrides skill model preference — cost if wrong: subtle whole-branch issues may need follow-up review/rework.
-- Prepare isolated benchmark script and immutable baseline in parallel with feature work; no shared implementation files — measurements need long wall time and baseline code is immutable — cost if wrong: rerun measurements if resource contention invalidates them.
-- Task8 label DOM/CSS subset runs independently of task5 controls with disjoint ownership; scene integration stays sequential — fixes a confirmed visible defect while navigation finishes — cost if wrong: repeat visual browser assertions.
-- Continue inline when agent spawn and followup both report agent thread limit reached — tools prevent fresh implementers/reviewers; complete authorized work with direct tests and explicit review limitation — cost if wrong: reduced independent review coverage.
+1. Paralelizar módulos independentes, como solicitado, e integrar arquivos compartilhados sequencialmente. Evita edições concorrentes; uma divisão inadequada custa retrabalho de integração.
+2. Usar um worktree vizinho e reutilizar dependências instaladas. Preserva o diretório original; se a reutilização falhasse, seria necessário instalar dependências isoladas.
+3. Na retomada, adotar executores novos e revisões separadas por tarefa, conforme a skill invocada e a preferência por modelos menores. O custo foi maior tempo de execução.
+4. Preservar e verificar a implementação já existente antes de continuar. Evita perder trabalho; custa uma auditoria adicional.
+5. Registrar a implementação anterior como checkpoint explicitamente não verificado. Facilita revisões por diferença; se inadequado, exigiria reorganizar o histórico antes da integração.
+6. Interpretar as proibições de implementação dos subplanos como restritas à rodada original de planejamento. O pedido posterior autorizou implementação e testes locais; nenhuma publicação ou exclusão real foi feita. Uma interpretação incorreta deixaria mudanças locais para descartar.
+7. Usar Terra também na revisão final, conforme a preferência expressa por modelos menores. O risco é precisar de revisão adicional para problemas sutis.
+8. Preparar benchmark e baseline imutável em paralelo à implementação, mas executar as medições sem concorrência de testes. Se houvesse disputa de recursos, seria necessário repetir as amostras.
+9. Corrigir os rótulos em paralelo aos controles, com arquivos distintos e integração da cena sequencial. Uma interação inesperada exigiria repetir os testes visuais.
+10. Continuar localmente quando a ferramenta recusou criação e retomada de agentes por limite de tarefas. Isso reduziu a revisão independente por unidade naquele momento; a revisão final independente e as verificações integradas foram realizadas depois.
