@@ -50,6 +50,10 @@ export class AquariumAudio {
     oscillator.start(now); oscillator.stop(now + duration);
   }
 
+  suspend(): void {
+    if (this.context?.state === 'running') void this.context.suspend();
+  }
+
   dispose(): void {
     for (const voice of this.voices) { voice.stop(); voice.disconnect(); }
     this.voices.clear(); this.master?.disconnect(); void this.context?.close();

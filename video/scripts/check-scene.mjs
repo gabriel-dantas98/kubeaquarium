@@ -1,0 +1,50 @@
+import assert from 'node:assert/strict';
+import { chromium } from 'playwright';
+const browser = await chromium.launch({args:['--enable-gpu','--use-angle=metal']});
+const page = await browser.newPage({viewport:{width:1280,height:720}});
+const errors=[]; page.on('pageerror',e=>errors.push(String(e)));
+try {
+  await page.goto(process.env.DEMO_URL ?? 'http://127.0.0.1:7781/?demo');
+  await page.waitForFunction(()=>window.__kubeaquarium?.pods>0);
+  const result=await page.evaluate(async()=>{
+    window.__kubeaquarium.pause();
+    const THREE=await import('/node_modules/.vite/deps/three.js');
+    const {layoutNamespaces}=await import('/src/namespaces.ts');
+    const {HybridCamera}=await import('/src/camera.ts');
+    const {AquariumScene}=await import('/src/scene.ts');
+    const check=(v,m)=>{if(!v)throw new Error(m)};
+    const state={allocations:new Map()};
+    let layouts=layoutNamespaces(['a','b'],new Map([['a',1],['b',100]]),state);
+    const old=layouts.get('a').center.clone();
+    layouts=layoutNamespaces(['a','b'],new Map([['a',1000],['b',100]]),state);
+    const radius=layouts.get('a').radius;
+    layouts=layoutNamespaces(['a','b','c'],new Map([['a',1000],['b',100],['c',20]]),state);
+    check(layouts.get('a').radius>=radius,'new namespace shrank existing radius');
+    layoutNamespaces(['b'],new Map([['b',100]]),state);
+    layouts=layoutNamespaces(['a','b','c'],new Map([['a',1000],['b',100],['c',20]]),state);
+    check(layouts.get('a').center.equals(old),'namespace reappearance moved center');
+    for(const a of layouts.values())for(const b of layouts.values())if(a!==b)check(Math.hypot(a.center.x-b.center.x,a.center.z-b.center.z)-a.radius-b.radius>=4-1e-8,'namespace overlap');
+    const canvas=document.createElement('canvas');document.body.append(canvas);
+    const camera=new THREE.PerspectiveCamera(55,16/9,.1,500);const hybrid=new HybridCamera(camera,canvas);
+    const many=layoutNamespaces(Array.from({length:30},(_,i)=>`ns-${i}`),new Map(),{allocations:new Map()});
+    const bounds=new THREE.Box3();for(const l of many.values()){bounds.expandByPoint(l.center.clone().addScalar(l.radius));bounds.expandByPoint(l.center.clone().addScalar(-l.radius));}
+    for(const aspect of [16/9,9/16]){camera.aspect=aspect;hybrid.frameBounds(bounds);camera.updateMatrixWorld();for(const l of many.values())for(const x of [-1,1])for(const y of [-1,1])for(const z of [-1,1]){const p=l.center.clone().add(new THREE.Vector3(x,y,z).multiplyScalar(l.radius)).project(camera);check(Math.abs(p.x)<=1&&Math.abs(p.y)<=1&&p.z<1,'overview clips bounds');}}
+    const scene=new AquariumScene(canvas);
+    scene.setPreferences({lookSensitivity:1,invertY:false,reducedMotion:true});
+    scene.rebuildNamespaceBubbles(new Map([['test',4]]));
+    const base={namespace:'test',node:'node',ready:true,restartCount:0,reason:'',cpuMillis:100,memMib:128,createdAt:'2026-09-22T00:00:00Z',controller:null,deletionTimestamp:''};
+    for(const [i,phase] of ['Running','Pending','Failed','Succeeded'].entries())scene.upsertPod({...base,uid:String(i),name:String(i),phase},new Map());
+    const completed=scene.slots.get('3');const completedPos=completed.pos.clone();scene.simulate(.05);check(completed.pos.equals(completedPos),'completed pod moves');
+    const states=[...scene.slots.values()].map(slot=>scene.mesh.geometry.getAttribute('instanceState').getX(slot.index));
+    check(states.join() === '0,1,2,3',`incorrect instance states ${states}`);
+    scene.showOverview();check(Math.exp(-((scene.scene.fog.density*scene.camera.position.length())**2))>=.5,'overview fog hides cluster');
+    const panel=document.getElementById('detail');panel.classList.remove('hidden');
+    for(const scale of [.3,3]){scene.slots.get('0').baseScale=scale;scene.focusOnPod('0');scene.camera.updateMatrixWorld();const p=scene.slots.get('0').pos.clone().project(scene.camera);const px=(p.x*.5+.5)*innerWidth;check(px<panel.getBoundingClientRect().left,'focused pod behind detail');const d=scene.camera.position.distanceTo(scene.slots.get('0').pos);const r=scale*1.72;check(r/(Math.sqrt(d*d-r*r)*Math.tan(THREE.MathUtils.degToRad(scene.camera.fov)/2))<=.601,'focused pod exceeds 60%');}
+    panel.classList.add('hidden');
+    scene.setReducedMotion(false);scene.spawnExplosion(new THREE.Vector3(),new THREE.Vector3(0,0,1));
+    check(scene.particles.length===12&&scene.fragments.length===4,'normal impact particle budgets');check(scene.particles.every(p=>p.ttl<=.45)&&scene.fragments.every(p=>p.ttl<=.45),'normal impact lifetime');scene.updateExplosionFx(0);check(scene.flashMat.opacity<=.25,'flash opacity');
+    scene.particles=[];scene.fragments=[];scene.setReducedMotion(true);scene.spawnExplosion(new THREE.Vector3(),new THREE.Vector3(0,0,1));check(scene.particles.length===6&&scene.fragments.length===0&&!scene.flashMesh.visible,'reduced impact budgets');check(scene.particles.every(p=>p.ttl<=.25),'reduced impact lifetime');
+    canvas.remove();return {states};
+  });
+  assert.deepEqual(errors,[]);console.log('scene layout, state, focus and impact checks passed',result);
+} finally {await browser.close();}

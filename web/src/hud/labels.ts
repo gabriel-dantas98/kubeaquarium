@@ -13,6 +13,7 @@ export interface NamespaceLabelTarget {
   namespace: string;
   total: number;
   unhealthy: number;
+  dense?: boolean;
   x: number;
   y: number;
   depth: number;
@@ -105,7 +106,7 @@ export class LabelLayer {
 
     selected.forEach((target, index) => {
       const entry = this.namespaces[index];
-      const content = `${target.namespace} · ${target.total} pods · ${target.unhealthy} unhealthy`;
+      const content = `${target.namespace} · ${target.total} pods · ${target.dense ? 'Dense' : `${target.unhealthy} unhealthy`}`;
       this.updateNamespace(entry, target, content);
 
       const rect = above(target.x, target.y, entry);

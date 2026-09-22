@@ -1,4 +1,5 @@
 import { AquariumScene } from './scene';
+import { AquariumAudio } from './audio';
 import { PodStore, Stream } from './stream';
 import { DetailPanel } from './hud/detail';
 import { SearchHUD, ALL, type Filter } from './hud/search';
@@ -12,6 +13,29 @@ import { LivePodOperations, ApiDeleteError, type PodOperations } from './operati
 import { DemoMission } from './demo-mission';
 import type { CameraPreferences } from './camera';
 
+
+const audio = new AquariumAudio();
+const soundToggle = document.getElementById('sound-toggle') as HTMLButtonElement;
+let soundEnabled = false;
+try { soundEnabled = localStorage.getItem('kubeaquarium.sound.v1') === 'on'; } catch { /* Storage is optional. */ }
+function updateSoundControl() {
+  soundToggle.textContent = soundEnabled ? 'Sound: on' : 'Sound: off';
+  soundToggle.setAttribute('aria-pressed', String(soundEnabled));
+  audio.setMuted(!soundEnabled);
+}
+updateSoundControl();
+soundToggle.addEventListener('click', () => {
+  soundEnabled = !soundEnabled;
+  updateSoundControl();
+  try { localStorage.setItem('kubeaquarium.sound.v1', soundEnabled ? 'on' : 'off'); } catch { /* Storage is optional. */ }
+  if (soundEnabled) void audio.enableFromGesture().then(() => audio.play('select')).catch(() => { soundEnabled = false; updateSoundControl(); });
+});
+// A remembered preference never creates or resumes audio without a gesture.
+for (const event of ['pointerdown', 'keydown']) document.addEventListener(event, () => {
+  if (soundEnabled && !document.hidden) void audio.enableFromGesture().catch(() => {});
+});
+document.addEventListener('visibilitychange', () => { if (document.hidden) audio.suspend(); });
+window.addEventListener('pagehide', () => audio.dispose());
 
 const canvas = document.getElementById('scene') as HTMLCanvasElement;
 const scene = new AquariumScene(canvas);
@@ -65,8 +89,16 @@ const recoveryPanel = new RecoveryPanel(document.getElementById('recovery-panel'
   tracker.dismiss(id); renderRecovery();
 }, uid => store.pods.has(uid));
 let previousRecovery = '';
+const soundedRecovery = new Set<string>();
 function renderRecovery() {
   const operations = tracker.operations;
+  const retained = new Set(operations.map(operation => operation.id));
+  for (const id of soundedRecovery) if (!retained.has(id)) soundedRecovery.delete(id);
+  for (const operation of operations) {
+    if (soundedRecovery.has(operation.id)) continue;
+    if (operation.phase === 'ready' && !operation.observationIncomplete) { audio.play('recovery'); soundedRecovery.add(operation.id); }
+    else if (operation.phase === 'failed' || operation.phase === 'unknown') { audio.play('error'); soundedRecovery.add(operation.id); }
+  }
   const signature = JSON.stringify(operations.map(o => [o.id,o.phase,o.message,o.candidateUid,o.acceptedAt]));
   if (signature === previousRecovery) return;
   previousRecovery = signature;
@@ -76,6 +108,7 @@ function renderRecovery() {
 function showPod(uid: string, notifyMission = true) {
   const pod = store.pods.get(uid);
   if (!pod) return;
+  audio.play('select');
   detail.show(pod);
   scene.setFocused(uid);
   scene.focusOnPod(uid);
@@ -182,6 +215,9 @@ stream.onConnectionChange = (ok) => {
 };
 document.getElementById('ws-dot')!.classList.remove('live');
 
+scene.onImpact = () => audio.play('impact');
+scene.onFire = () => audio.play('fire');
+let wasDiving = false;
 scene.onSelect = (uid) => showPod(uid);
 scene.onAttackHit = (uid) => {
   lastAttackHitUid = uid;
@@ -301,6 +337,8 @@ function labelLoop(timestamp: number) {
   if (scene.isDiving) moveReticle(window.innerWidth/2,window.innerHeight/2);
   if (timestamp-lastRadarRefresh>100) {radar.refresh();renderRecovery();lastRadarRefresh=timestamp;}
   const context = labelContext();
+  if (scene.isDiving && !wasDiving) audio.play('dive');
+  wasDiving = scene.isDiving;
   labels.render(scene.getLabelTargets(), context);
   labels.renderNamespaces(scene.getNamespaceLabelTargets(), context);
   requestAnimationFrame(labelLoop);
