@@ -41,6 +41,35 @@ async function snapshot(page) {
   return { domNodes: value.domNodes, drawCalls: value.scene.drawCalls, geometries: value.scene.geometries, textures: value.scene.textures };
 }
 
+async function aimAtSelectedPod(page, name) {
+  // Focus leaves room for the detail panel, so after entering dive explicitly
+  // steer the real right-drag look controls toward the selected slot.
+  for (let attempt = 0; attempt < 4; attempt++) {
+    const target = await page.evaluate(selectedName => {
+      const navigation = window.__kubeaquarium?.navigationDebug?.();
+      const slot = window.__kubeaquarium?.slotsDebug?.().find(value => value.name === selectedName);
+      return navigation && slot ? { navigation, position: slot.pos } : null;
+    }, name);
+    assert.ok(target, `Selected dynamic pod ${name} is not in the scene`);
+    const [x, y, z] = target.position;
+    const [cx, cy, cz] = target.navigation.position;
+    const [dx, dy, dz] = target.navigation.direction;
+    const desiredYaw = Math.atan2(x - cx, z - cz);
+    const currentYaw = Math.atan2(dx, dz);
+    const desiredPitch = Math.atan2(y - cy, Math.hypot(x - cx, z - cz));
+    const currentPitch = Math.asin(dy);
+    const yawDelta = Math.atan2(Math.sin(desiredYaw - currentYaw), Math.cos(desiredYaw - currentYaw));
+    const pitchDelta = desiredPitch - currentPitch;
+    if (Math.abs(yawDelta) < .03 && Math.abs(pitchDelta) < .03) return;
+    const moveX = Math.max(-260, Math.min(260, -yawDelta / .003));
+    const moveY = Math.max(-180, Math.min(180, -pitchDelta / .003));
+    await page.mouse.move(720, 450);
+    await page.mouse.down({ button: 'right' });
+    await page.mouse.move(720 + moveX, 450 + moveY, { steps: 4 });
+    await page.mouse.up({ button: 'right' });
+  }
+}
+
 function trend(values) {
   const first = values[0];
   const last = values.at(-1);
@@ -114,6 +143,7 @@ try {
     }, reduced);
     await page.keyboard.press('f');
     await page.waitForFunction(() => window.__kubeaquarium?.diveMode === true);
+    await aimAtSelectedPod(page, replacement.name);
     if (!await page.evaluate(() => window.__kubeaquarium?.attackMode)) await page.keyboard.press('ControlOrMeta+l');
     const before = deletes.length;
     const previousHit = await page.evaluate(() => window.__kubeaquarium?.lastAttackHitUid ?? null);
