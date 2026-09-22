@@ -30,7 +30,7 @@ html, body {
 body.dive #scene { cursor: none; }
 
 #hud {
-  position: fixed; inset: 0; pointer-events: none;
+  position: fixed; inset: 0; z-index: 20; pointer-events: none;
   font-size: 13px;
 }
 #hud > * { pointer-events: auto; }
@@ -589,12 +589,12 @@ body.attack .crosshair {
 /* ------- Floating pod labels ------- */
 
 #labels {
-  position: fixed; inset: 0; pointer-events: none;
+  position: fixed; inset: 0; z-index: 10; pointer-events: none;
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
 .pod-label {
-  position: absolute; transform: translate(-50%, -100%);
-  background: rgba(7, 22, 40, 0.78);
+  position: absolute; left: 0; top: 0;
+  background: rgba(3, 15, 29, 0.92);
   border: 1px solid rgba(110,195,244,0.25);
   border-radius: 6px;
   padding: 2px 8px;
@@ -604,7 +604,7 @@ body.attack .crosshair {
   backdrop-filter: blur(4px);
   pointer-events: none;
   opacity: 0; transition: opacity .15s;
-  max-width: 320px; overflow: hidden; text-overflow: ellipsis;
+  max-width: min(240px, calc(100vw - 32px)); overflow: hidden; text-overflow: ellipsis;
 }
 .pod-label.visible { opacity: 1; }
 .pod-label.focused {
@@ -642,6 +642,16 @@ body.attack .crosshair {
   font-weight: 700;
 }
 .pod-label.focused .ns { color: rgba(255,255,255,0.7); border-right-color: rgba(255,255,255,0.25); }
+.namespace-label {
+  position: absolute; left: 0; top: 0;
+  max-width: min(240px, calc(100vw - 32px)); overflow: hidden; text-overflow: ellipsis;
+  padding: 3px 8px; border: 1px solid rgba(110,195,244,.38); border-radius: 6px;
+  color: #eaf6ff; background: rgba(3, 15, 29, .92);
+  font: 600 11px/1.35 ui-monospace, SFMono-Regular, Menlo, monospace;
+  opacity: 0; white-space: nowrap; pointer-events: none;
+  transition: opacity .15s;
+}
+.namespace-label.visible { opacity: 1; }
 
 /* ------- Empty state ------- */
 
@@ -706,7 +716,6 @@ body.attack .crosshair {
 }
 
 /* The world layer never overlays interactive HUD surfaces. */
-#labels { z-index: 1; pointer-events: none; }
 .topbar, .hint { position: relative; z-index: 3; }
 .radar, .detail, .search { z-index: 5; }
 .navigation { display: flex; align-items: center; gap: 8px; }
@@ -731,6 +740,7 @@ body.attack .crosshair {
 #demo-mission p { font-size: 16px; }
 #demo-mission button { margin: 3px; }
 body.reduced-motion *, body.reduced-motion *::before, body.reduced-motion *::after { animation: none !important; transition: none !important; }
+@media (prefers-reduced-motion: reduce) { .pod-label, .namespace-label, .radar-sweep { transition: none !important; animation: none !important; } }
 @media (max-width: 900px) { .topbar { flex-wrap: wrap; gap: 10px; } .navigation { order: 3; } .meta { gap: 8px; } #recovery-panel { top: 100px; width: 260px; } #demo-mission { width: 250px; bottom: 100px; } }
 #hud > #attack-frame { pointer-events: none; }
 .hint { position: absolute; }

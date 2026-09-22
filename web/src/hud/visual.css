@@ -1,5 +1,0 @@
-#labels { position: fixed; inset: 0; z-index: 10; pointer-events: none; }
-.pod-label, .namespace-label { left: 0; top: 0; max-width: min(240px, calc(100vw - 32px)); color: #eaf6ff; background: rgba(3, 15, 29, .92); }
-.namespace-label { position: absolute; padding: 3px 8px; border: 1px solid rgba(110,195,244,.38); border-radius: 6px; font: 600 11px/1.35 ui-monospace, SFMono-Regular, Menlo, monospace; opacity: 0; white-space: nowrap; }
-.namespace-label.visible { opacity: 1; }
-@media (prefers-reduced-motion: reduce) { .pod-label, .namespace-label, .radar-sweep { transition: none !important; animation: none !important; } }
