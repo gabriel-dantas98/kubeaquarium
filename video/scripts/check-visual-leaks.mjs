@@ -1,4 +1,6 @@
 import assert from 'node:assert/strict';
+import { mkdir, writeFile } from 'node:fs/promises';
+import { dirname } from 'node:path';
 import { chromium } from 'playwright';
 
 const url = process.env.BENCH_URL ?? 'http://127.0.0.1:5182';
@@ -28,6 +30,8 @@ async function reset(page) {
   await page.keyboard.press('Escape');
   await page.keyboard.press('Escape');
   await page.waitForFunction(() => window.__kubeaquarium?.diveMode === false);
+  if (await page.evaluate(() => window.__kubeaquarium?.attackMode === true)) await page.keyboard.press('ControlOrMeta+l');
+  await page.waitForFunction(() => window.__kubeaquarium?.attackMode === false);
 }
 
 async function snapshot(page) {
@@ -51,8 +55,11 @@ function trend(values) {
 const browser = await chromium.launch({ headless: true, args: ['--enable-gpu', '--use-angle=metal', '--ignore-gpu-blocklist'] });
 const page = await browser.newPage({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: 1 });
 const deletes = [];
+const pageErrors = [];
 let socket;
 try {
+  page.on('pageerror', error => pageErrors.push(String(error)));
+  page.on('console', message => { if (message.type() === 'error') pageErrors.push(`console: ${message.text()}`); });
   await page.route('**/api/**', async route => {
     const request = route.request();
     if (request.method() === 'DELETE') {
@@ -62,8 +69,12 @@ try {
       const pod = pods.find(candidate => candidate.name === name && (uid === null || candidate.uid === uid));
       assert.ok(pod, `Unknown synthetic DELETE ${uid} ${name}`);
       deletes.push(pod.uid);
+      pods.splice(pods.indexOf(pod), 1);
       await route.fulfill({ status: 202, contentType: 'application/json', body: JSON.stringify({ accepted: true, uid: pod.uid }) });
       socket?.send(JSON.stringify({ type: 'deleted', uid: pod.uid }));
+      const replacement = { ...pod, uid: `leak-replenished-${deletes.length}`, name: `leak-replenished-worker-${deletes.length}` };
+      pods.push(replacement);
+      setTimeout(() => socket?.send(JSON.stringify({ type: 'added', pod: replacement })), 500);
       return;
     }
     const path = new URL(request.url()).pathname;
@@ -90,7 +101,8 @@ try {
     await page.keyboard.press('ControlOrMeta+k');
     await page.locator('#radar-input').fill(replacement.name);
     await page.keyboard.press('Enter'); // selects and focuses the dynamic UID
-    await page.waitForTimeout(30);
+    await page.waitForFunction(name => document.querySelector('#d-name')?.textContent === name, replacement.name);
+    await page.waitForFunction(() => window.__kubeaquarium?.navigationDebug?.().mode === 'orbit');
     await page.keyboard.press('Escape');
 
     const reduced = cycle > cycles / 2;
@@ -102,12 +114,14 @@ try {
     }, reduced);
     await page.keyboard.press('f');
     await page.waitForFunction(() => window.__kubeaquarium?.diveMode === true);
-    await page.keyboard.press('ControlOrMeta+l');
+    if (!await page.evaluate(() => window.__kubeaquarium?.attackMode)) await page.keyboard.press('ControlOrMeta+l');
     const before = deletes.length;
     const previousHit = await page.evaluate(() => window.__kubeaquarium?.lastAttackHitUid ?? null);
     await page.mouse.click(720, 450);
     await page.waitForFunction(hit => window.__kubeaquarium?.lastAttackHitUid !== hit, previousHit, { timeout: 4_500 });
     await waitFor(() => deletes.length > before, 3_000, 'Impact did not issue a mocked DELETE');
+    await page.waitForTimeout(700); // removal fade and synthetic replacement settle
+    await page.waitForFunction(expected => window.__kubeaquarium?.pods === expected, count);
     await reset(page);
     samples.push({ cycle, motion: reduced ? 'reduced' : 'normal', ...(await snapshot(page)) });
   }
@@ -120,7 +134,9 @@ try {
   assert.ok(summary.domNodes.range <= 24, `DOM grew across stable cycles: ${JSON.stringify(summary.domNodes)}`);
   assert.equal(summary.geometries.range, 0, `Geometry count changed across stable cycles: ${JSON.stringify(summary.geometries)}`);
   assert.equal(summary.textures.range, 0, `Texture count changed across stable cycles: ${JSON.stringify(summary.textures)}`);
-  await (await import('node:fs/promises')).writeFile(output, JSON.stringify({ url, count, cycles, deletes: deletes.length, samples, summary }, null, 2));
+  assert.deepEqual(pageErrors, [], `Browser errors during leak test:\n${pageErrors.join('\n')}`);
+  await mkdir(dirname(output), { recursive: true });
+  await writeFile(output, JSON.stringify({ url, count, cycles, deletes: deletes.length, samples, summary }, null, 2));
   console.log(JSON.stringify({ cycles, deletes: deletes.length, summary }));
 } finally {
   await browser.close();
