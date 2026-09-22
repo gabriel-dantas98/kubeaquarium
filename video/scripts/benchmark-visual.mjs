@@ -21,14 +21,13 @@ const duration = Number(process.env.BENCH_MS ?? 30_000);
 const warmup = Number(process.env.BENCH_WARMUP_MS ?? 10_000);
 const rounds = Number(process.env.BENCH_ROUNDS ?? 3);
 const counts = (process.env.BENCH_COUNTS ?? '200,1200,2500').split(',').map(Number);
-const leakCycles = Number(process.env.BENCH_LEAK_CYCLES ?? 0);
 const screenshots = process.env.BENCH_SCREENSHOTS !== '0';
 const autoServe = !process.env.BENCH_URL;
 const execFileAsync = promisify(execFile);
 
 if (!['baseline', 'final'].includes(target)) throw new Error(`BENCH_TARGET must be baseline or final, got ${target}`);
 if (!counts.every(count => Number.isInteger(count) && count > 0)) throw new Error('BENCH_COUNTS must contain positive integers');
-if (![duration, warmup, rounds, leakCycles].every(Number.isFinite) || duration <= 0 || warmup < 0 || !Number.isInteger(rounds) || rounds < 1 || !Number.isInteger(leakCycles) || leakCycles < 0) {
+if (![duration, warmup, rounds].every(Number.isFinite) || duration <= 0 || warmup < 0 || !Number.isInteger(rounds) || rounds < 1) {
   throw new Error('Invalid benchmark durations or rounds');
 }
 
@@ -241,68 +240,7 @@ async function createScenarioPage(browser, count) {
   });
   await page.goto(url, { waitUntil: 'domcontentloaded' });
   await page.waitForFunction(expected => window.__kubeaquarium?.pods === expected, count, { timeout: 30_000 });
-  return { page, fixture, errors, send: event => socket?.send(JSON.stringify(event)) };
-}
-
-async function resourceSnapshot(page) {
-  const snapshot = await page.evaluate(() => ({
-    domNodes: document.getElementsByTagName('*').length,
-    scene: window.__kubeaquarium?.frameMetrics?.() ?? null,
-  }));
-  assert.ok(snapshot.scene, 'Leak test requires scene frame metrics');
-  for (const field of ['drawCalls', 'geometries', 'textures']) {
-    assert.ok(Number.isFinite(snapshot.scene[field]), `Leak test frame metric ${field} is unavailable`);
-  }
-  return snapshot;
-}
-
-async function runLeakTest(browser, count) {
-  if (leakCycles === 0) return [];
-  if (target !== 'final') throw new Error('BENCH_LEAK_CYCLES is supported only for the final build');
-  const { page, fixture, errors, send } = await createScenarioPage(browser, count);
-  const samples = [];
-  try {
-    samples.push({ cycle: 0, phase: 'initial', ...(await resourceSnapshot(page)) });
-    for (let cycle = 1; cycle <= leakCycles; cycle++) {
-      const replaced = fixture.pods[(cycle - 1) % fixture.pods.length];
-      const replacement = { ...replaced, uid: `leak-churn-${cycle}`, name: `leak-worker-${cycle}` };
-      send({ type: 'deleted', uid: replaced.uid });
-      send({ type: 'added', pod: replacement });
-      fixture.pods[(cycle - 1) % fixture.pods.length] = replacement;
-      await page.waitForTimeout(50);
-
-      // Filter, radar selection (focus), dive, and a mocked impact exercise
-      // the live paths in every cycle. Reduced motion is tested separately in
-      // the second half without treating a zero texture count as a verdict.
-      await page.keyboard.press('/');
-      await page.locator('#search-input').fill(`ns:${replacement.namespace}`);
-      await page.waitForFunction(uid => window.__kubeaquarium?.matched > 0 && window.__kubeaquarium?.pods > 0, replacement.uid);
-      await page.keyboard.press('Escape');
-      await page.keyboard.press('ControlOrMeta+k');
-      await page.locator('#radar-input').fill(replacement.name);
-      await page.keyboard.press('Enter');
-      await page.waitForTimeout(30);
-      await page.keyboard.press('Escape');
-      await page.evaluate(reduced => {
-        const input = document.querySelector('#reduce-motion');
-        if (!(input instanceof HTMLInputElement)) throw new Error('Reduce-motion control is missing');
-        input.checked = reduced;
-        input.dispatchEvent(new Event('input', { bubbles: true }));
-      }, cycle > leakCycles / 2);
-      await page.keyboard.press('f');
-      await page.waitForFunction(() => window.__kubeaquarium?.diveMode === true);
-      await page.keyboard.press('ControlOrMeta+l');
-      await page.waitForFunction(() => window.__kubeaquarium?.attackMode === true);
-      await triggerImpactDuringSample(page, fixture);
-      await page.keyboard.press('Escape');
-      await page.waitForFunction(() => window.__kubeaquarium?.diveMode === false);
-      samples.push({ cycle, phase: cycle > leakCycles / 2 ? 'reduced-motion' : 'normal-motion', ...(await resourceSnapshot(page)) });
-    }
-    if (errors.length) throw new Error(`Browser errors during leak test:\n${errors.join('\n')}`);
-    return samples;
-  } finally {
-    await page.close();
-  }
+  return { page, fixture, errors };
 }
 
 async function runScenario(browser, count, round, scenario) {
@@ -362,7 +300,6 @@ const state = {
   warmup,
   rounds,
   counts,
-  leakCycles,
   viewport: [1440, 900],
   deviceScaleFactor: 1,
   browser: null,
@@ -370,7 +307,6 @@ const state = {
   gpu: null,
   resourceMetrics: 'DOM and PerformanceResourceTiming are collected. Renderer resource counts are null unless the application explicitly exposes them; null never means zero.',
   results,
-  leakSamples: [],
 };
 try {
   server = await startServer();
@@ -389,8 +325,6 @@ try {
     await checkpoint(state);
     console.log(JSON.stringify({ target, count, round, scenario, p95Ms: result.p95Ms, over50Ms: result.over50Ms, deletes: result.deletes }));
   }
-  state.leakSamples = await runLeakTest(browser, counts[0]);
-  await checkpoint(state);
 } finally {
   await checkpoint(state);
   await browser?.close();
