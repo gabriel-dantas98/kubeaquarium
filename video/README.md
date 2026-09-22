@@ -1,36 +1,25 @@
 # kubeaquarium demo video
 
-Remotion project for the README demo video.
+The video records only the repeatable simulated recovery mission. It never connects to a Kubernetes API: the capture and verifier reject any `/api/` request or non-read network method, and refuse URLs that are not local `?demo` URLs.
 
-## Capture footage
-
-Start kubeaquarium first:
+Use two terminals. Start the demo app in the first:
 
 ```bash
-go run ./cmd/kubeaquarium --addr 127.0.0.1:7781 --no-open --namespace monitoring
+cd web
+npm run dev -- --host 127.0.0.1 --port 7781
 ```
 
-Then capture browser footage:
+Then validate and capture in the second:
 
 ```bash
 cd video
-pnpm install
-DEMO_URL=http://127.0.0.1:7781 pnpm run capture
+DEMO_URL='http://127.0.0.1:7781/?demo' node scripts/verify-recovery.mjs
+DEMO_URL='http://127.0.0.1:7781/?demo' pnpm capture
+pnpm lint
+pnpm render
+pnpm still
 ```
 
-The capture script writes `public/kubeaquarium-footage.webm`.
-It records at 960x540 so the source footage stays small enough for the repo.
+Capture writes `public/kubeaquarium-footage.webm` and `public/kubeaquarium-beats.json`. The Remotion composition reads the captured beats and ends two seconds after the final one at 24 FPS. Rendering creates `../docs/video/kubeaquarium-demo.mp4`; the still creates `../docs/video/kubeaquarium-demo-poster.png`.
 
-## Render
-
-```bash
-pnpm run still
-pnpm run render
-```
-
-Outputs:
-
-- `../docs/video/kubeaquarium-demo-poster.png`
-- `../docs/video/kubeaquarium-demo.mp4`
-
-`pnpm run render` runs Remotion first, then recompresses the MP4 with FFmpeg (`crf=34`, no audio, 960x540, 24 FPS) to keep the checked-in README demo small.
+Review both outputs at 960×540 before publishing: the simulated marker, the Ready conclusion, and all captions must remain legible.
