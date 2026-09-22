@@ -112,9 +112,10 @@ export class RadarHUD {
     window.addEventListener('keydown', e => this.onGlobalKey(e));
     const rangeControl = document.createElement('select');
     rangeControl.setAttribute('aria-label', 'Radar range');
+    rangeControl.className = 'radar-range';
     rangeControl.innerHTML = [50, 100, 250, 500].map(value => `<option value="${value}">${value} units</option>`).join('');
     rangeControl.value = String(this.range);
-    this.scope.insertAdjacentElement('beforebegin', rangeControl);
+    this.root.querySelector('.radar-console')!.querySelector('.radar-head')!.append(rangeControl);
     rangeControl.addEventListener('change', () => { this.range = Number(rangeControl.value); this.renderScope(); });
     this.input.addEventListener('input', () => {
       this.query = this.input.value;
@@ -223,9 +224,11 @@ export class RadarHUD {
   private renderScope() {
     const pose = this.handlers.getPose();
     if (!this.scope.querySelector('.radar-heading')) {
-      this.scope.innerHTML = '<span class="radar-ring r1"></span><span class="radar-ring r2"></span><span class="radar-ring r3"></span><span class="radar-cross x"></span><span class="radar-cross y"></span><span class="radar-heading"></span>';
+      this.scope.innerHTML = '<span class="radar-ring r1"></span><span class="radar-ring r2"></span><span class="radar-ring r3"></span><span class="radar-cross x"></span><span class="radar-cross y"></span><span class="radar-heading"></span><span class="radar-status-line"></span>';
     }
-    this.scope.querySelector('.radar-heading')!.textContent = `Heading up · ${this.range} units`;
+    this.scope.querySelector('.radar-heading')!.textContent = `Ahead ↑ · ${this.range}u`;
+    const statusLine = this.scope.querySelector('.radar-status-line')!;
+    statusLine.textContent = '';
     const existing = new Map([...this.scope.querySelectorAll<HTMLButtonElement>('.radar-blip')].map(button => [button.dataset.uid!, button]));
     const activeUid = this.visibleItems[this.activeIndex]?.id;
     for (const item of this.visibleItems) {
@@ -247,10 +250,15 @@ export class RadarHUD {
       const p = projectRadar(item.position, pose, this.range);
       const altitude = p.altitude > 2 ? ' ↑' : p.altitude < -2 ? ' ↓' : '';
       const distance = Math.hypot(item.position.x - pose.position.x, item.position.y - pose.position.y, item.position.z - pose.position.z);
+      const altitudeText = p.altitude > 2 ? `${Math.round(p.altitude)} units above` : p.altitude < -2 ? `${Math.round(-p.altitude)} units below` : 'level';
+      const distanceText = p.outside ? `${Math.round(distance)} units away` : `${Math.round(distance)} units`;
+      const scopeStatus = `${Math.round(distance)}u · ${p.altitude > 2 ? `${Math.round(p.altitude)}↑` : p.altitude < -2 ? `${Math.round(-p.altitude)}↓` : 'level'}`;
       blip.className = `radar-blip${item.id === activeUid ? ' active' : ''}${p.outside ? ' outside' : ''}`;
       blip.setAttribute('aria-label', `${item.name}${altitude}${p.outside ? ` · ${Math.round(distance)} units` : ''}`);
+      blip.title = `${item.name} · ${distanceText} · ${altitudeText}`;
       blip.style.left = `${50 + p.x * 44}%`;
       blip.style.top = `${50 + p.y * 44}%`;
+      if (item.id === activeUid) statusLine.textContent = scopeStatus;
     }
     for (const blip of existing.values()) blip.remove();
   }
