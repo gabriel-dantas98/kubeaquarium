@@ -1,6 +1,6 @@
 # Gate visual e orçamento de frames — 2026-09-22
 
-Execuções sintéticas HTTP+WebSocket, Chromium headless, 1440×900, DPR 1, aquecimento 10 s e medição 30 s. Cada célula é a mediana de três rodadas; valores são p50/p95/p99 em ms. O baseline usou `/Users/gdantas/git/gdantas/kubeaquarium/web` em `e31be2d`; o final usou a fonte congelada pós-radar. Dados brutos: `output/playwright/benchmark-full-baseline/metrics.json` e `output/playwright/benchmark-full-final-post-radar/metrics.json`.
+Execuções sintéticas HTTP+WebSocket, Chromium headless 149.0.7827.55, macOS 26.5.2, CPU Apple M4 e GPU ANGLE Metal/Apple M4; 1440×900, DPR 1, aquecimento 10 s e medição 30 s. Baseline `e31be2d`, final `05bc429`. Dados: [baseline](2026-09-22/baseline/metrics.json), [final](2026-09-22/final/metrics.json), [CSV](2026-09-22/comparison.csv) e [leak](2026-09-22/leak-post-radar.json).
 
 | pods | cenário | baseline | final | Δ p95 | >50 ms b/f |
 |---:|---|---|---|---:|---:|
@@ -20,4 +20,6 @@ Execuções sintéticas HTTP+WebSocket, Chromium headless, 1440×900, DPR 1, aqu
 |2500|dive|16.7/17.6/17.7|16.7/18.3/18.6|4.0%|0/0|
 |2500|impact|16.7/17.6/17.7|16.7/18.2/18.6|3.4%|0/0|
 
-Nenhum p95 regrediu mais de 10%; 200 pods ficou abaixo da meta de 20 ms. O impacto mede um acerto com DELETE sintético confirmado durante a janela, não dez impactos simultâneos. A repetição de recursos foi coberta separadamente por 50 ciclos: DOM 205–207, geometrias 27 e texturas 0 constantes. O baseline não expõe contagens de recursos GPU: são `null`, não zero. As capturas em `docs/screenshots/visual-feedback/` foram feitas após a janela medida; imagens de impacto são imediatas ao hit, mas o manifesto registra a limitação do efeito de 250 ms.
+Nenhum p95 regrediu mais de 10%; 200 pods ficou abaixo de 20 ms. FPS observado é `frames / (sum(rawMs)/1000)`, derivado do raw rAF, não da média histórica. Impacto mede um acerto/DELETE sintético por janela; 50 ciclos cobrem repetição. Screenshots de benchmark [baseline](2026-09-22/baseline/) e [final](2026-09-22/final/) são pós-janela; capturas demo imediatas ao hit ficam em `docs/screenshots/visual-feedback/`.
+
+Reprodução: `BENCH_BASELINE_ROOT=/Users/gdantas/git/gdantas/kubeaquarium/web BENCH_TARGET=baseline BENCH_OUTPUT=... node video/scripts/benchmark-visual.mjs`; repetir com `BENCH_TARGET=final` e URL local.
