@@ -259,8 +259,8 @@ let manualMotion = false;
 let preferences: CameraPreferences = {lookSensitivity:1,invertY:false,reducedMotion:motionMedia.matches};
 try {
   const saved = JSON.parse(localStorage.getItem('kubeaquarium.camera.v1') ?? 'null');
-  if (saved && typeof saved.lookSensitivity === 'number' && typeof saved.invertY === 'boolean' && typeof saved.reducedMotion === 'boolean') {
-    preferences = {...saved,lookSensitivity:Math.max(.25,Math.min(2,saved.lookSensitivity))}; manualMotion = true;
+  if (saved && Number.isFinite(saved.lookSensitivity) && saved.lookSensitivity >= .25 && saved.lookSensitivity <= 2 && typeof saved.invertY === 'boolean' && typeof saved.reducedMotion === 'boolean') {
+    preferences = saved; manualMotion = true;
   }
 } catch { /* Invalid stored settings use current defaults. */ }
 const sensitivity = document.getElementById('look-sensitivity') as HTMLInputElement;

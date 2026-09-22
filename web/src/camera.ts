@@ -9,7 +9,7 @@ import { isUIEvent } from './input';
  *   - 'focus': cinematic dolly to a specific point (when a whale is clicked).
  *   - 'dive':   submarine dive mode, WASD movement with a HUD reticle.
  *
- * Press F to toggle dive mode; ESC returns to orbit.
+ * Press F to toggle dive mode. Escape handling belongs to the UI composition.
  */
 
 export type Mode = 'orbit' | 'focus' | 'dive';
@@ -84,7 +84,11 @@ export class HybridCamera {
       invertY: value.invertY === true,
       reducedMotion: value.reducedMotion === true,
     };
-    if (this.preferences.reducedMotion) this.removeShake();
+    if (this.preferences.reducedMotion) {
+      this.removeShake();
+      // Reduced motion must also stop an already gliding submarine immediately.
+      this.velocity.set(0, 0, 0);
+    }
   }
 
   clearInput() {
@@ -282,7 +286,7 @@ export class HybridCamera {
       // Smooth velocity
       const targetVel = accel.multiplyScalar(this.diveSpeed);
       if (this.preferences.reducedMotion) this.velocity.copy(targetVel);
-      else this.velocity.lerp(targetVel, Math.min(1, dt * 6));
+      else this.velocity.lerp(targetVel, Math.min(1, dt * 8));
       this.camera.position.addScaledVector(this.velocity, dt);
 
       this.camera.lookAt(this.camera.position.clone().add(fwd));

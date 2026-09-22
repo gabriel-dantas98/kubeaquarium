@@ -265,6 +265,7 @@ export class RadarHUD {
   private onInputKey(e: KeyboardEvent) {
     if (e.key === 'Escape') {
       e.preventDefault();
+      e.stopPropagation();
       this.close();
     } else if (e.key === 'ArrowDown') {
       e.preventDefault();
