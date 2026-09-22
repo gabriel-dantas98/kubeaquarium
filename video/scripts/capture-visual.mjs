@@ -13,8 +13,9 @@ function name(size, stage, reduced) { return `${size[0]}x${size[1]}-${stage}${re
 async function labelsDoNotIntersect(page) {
   return page.evaluate(() => {
     const overlap = (a, b) => a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top;
-    return ![...document.querySelectorAll('.pod-label.visible,.namespace-label.visible')].some(label =>
-      [...document.querySelectorAll('.topbar,#search:not(.hidden),#radar:not(.hidden),.detail:not(.hidden)')].some(panel => overlap(label.getBoundingClientRect(), panel.getBoundingClientRect())));
+    const labels = [...document.querySelectorAll('.pod-label.visible,.namespace-label.visible')];
+    const panels = [...document.querySelectorAll('.topbar,#search:not(.hidden),#radar:not(.hidden),.detail:not(.hidden),#demo-mission,#recovery-panel')];
+    return !labels.some((label, index) => panels.some(panel => overlap(label.getBoundingClientRect(), panel.getBoundingClientRect())) || labels.slice(index + 1).some(other => overlap(label.getBoundingClientRect(), other.getBoundingClientRect())));
   });
 }
 
@@ -27,23 +28,33 @@ for (const size of sizes) {
   try {
     await page.goto(url, { waitUntil: 'domcontentloaded' });
     await page.waitForFunction(() => window.__kubeaquarium?.pods > 0);
+    await page.waitForFunction(() => document.querySelectorAll('.namespace-label.visible').length > 0);
     const shot = async (stage, reduced = false) => {
       const file = path.join(output, name(size, stage, reduced));
       await page.screenshot({ path: file });
       manifest.captures.push({ file, stage, size, reduced, labelsNonIntersecting: await labelsDoNotIntersect(page) });
     };
     await shot('overview');
-    await page.keyboard.press('/'); await page.locator('#search-input').fill('ns:demo'); await shot('filter'); await page.keyboard.press('Escape');
+    await page.keyboard.press('/'); await page.locator('#search-input').fill('ns:bench-payments'); await page.waitForFunction(() => window.__kubeaquarium?.matched > 0); await page.waitForTimeout(120); await shot('filter'); await page.keyboard.press('Escape');
     await page.keyboard.press('ControlOrMeta+k'); await page.locator('#radar-input').fill('checkout'); await shot('radar'); await page.keyboard.press('Enter'); await page.waitForTimeout(950); await shot('focus'); await page.keyboard.press('Escape');
-    await page.keyboard.press('f'); await page.waitForFunction(() => window.__kubeaquarium?.diveMode === true); await shot('dive');
+    const mission = page.locator('#demo-mission');
+    await mission.getByRole('button', { name: 'Find pod' }).click();
+    await mission.getByRole('button', { name: 'Inspect failure' }).click();
+    await mission.getByRole('button', { name: 'Prepare submarine' }).click();
+    await page.waitForFunction(() => window.__kubeaquarium?.diveMode === true); await shot('dive');
     await page.keyboard.press('ControlOrMeta+l');
     const before = await page.evaluate(() => window.__kubeaquarium?.lastAttackHitUid ?? null);
     await page.mouse.click(size[0] / 2, size[1] / 2);
     await page.waitForFunction(hit => window.__kubeaquarium?.lastAttackHitUid !== hit, before, { timeout: 5_000 });
-    await shot('impact'); // immediate after confirmed hit; particle visibility is recorded, not assumed.
+    await shot('impact'); // immediate after confirmed hit; the ~250ms effect is recorded, never assumed.
     await page.keyboard.press('Escape');
-    await page.locator('#reduce-motion').check();
-    await page.keyboard.press('f'); await page.waitForFunction(() => window.__kubeaquarium?.diveMode === true); await shot('dive', true);
+    await page.reload({ waitUntil: 'domcontentloaded' }); await page.waitForFunction(() => window.__kubeaquarium?.pods > 0);
+    await page.locator('#camera-settings summary').click(); await page.locator('#reduce-motion').check(); await page.locator('#camera-settings summary').click();
+    const reducedMission = page.locator('#demo-mission');
+    await reducedMission.getByRole('button', { name: 'Find pod' }).click(); await reducedMission.getByRole('button', { name: 'Inspect failure' }).click(); await reducedMission.getByRole('button', { name: 'Prepare submarine' }).click();
+    await page.waitForFunction(() => window.__kubeaquarium?.diveMode === true); await shot('dive', true);
+    const reducedBefore = await page.evaluate(() => window.__kubeaquarium?.lastAttackHitUid ?? null);
+    await page.mouse.click(size[0] / 2, size[1] / 2); await page.waitForFunction(hit => window.__kubeaquarium?.lastAttackHitUid !== hit, reducedBefore, { timeout: 5_000 }); await shot('impact', true);
     if (blocked.length || errors.length) throw new Error(`blocked=${blocked.join(',')} errors=${errors.join(',')}`);
   } catch (error) { manifest.errors.push({ size, error: String(error), blocked, errors }); }
   finally { await browser.close(); }
