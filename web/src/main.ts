@@ -17,7 +17,7 @@ import type { CameraPreferences } from './camera';
 const audio = new AquariumAudio();
 const soundToggle = document.getElementById('sound-toggle') as HTMLButtonElement;
 let soundEnabled = false;
-try { soundEnabled = localStorage.getItem('kubeaquarium.sound.v1') === 'on'; } catch { /* Storage is optional. */ }
+try { soundEnabled = localStorage.getItem('kubeaquarium.sound') === 'on'; } catch { /* Storage is optional. */ }
 function updateSoundControl() {
   soundToggle.textContent = soundEnabled ? 'Sound: on' : 'Sound: off';
   soundToggle.setAttribute('aria-pressed', String(soundEnabled));
@@ -27,12 +27,12 @@ updateSoundControl();
 soundToggle.addEventListener('click', () => {
   soundEnabled = !soundEnabled;
   updateSoundControl();
-  try { localStorage.setItem('kubeaquarium.sound.v1', soundEnabled ? 'on' : 'off'); } catch { /* Storage is optional. */ }
+  try { localStorage.setItem('kubeaquarium.sound', soundEnabled ? 'on' : 'off'); } catch { /* Storage is optional. */ }
   if (soundEnabled) void audio.enableFromGesture().then(() => audio.play('select')).catch(() => { soundEnabled = false; updateSoundControl(); });
 });
 // A remembered preference never creates or resumes audio without a gesture.
 for (const event of ['pointerdown', 'keydown']) document.addEventListener(event, () => {
-  if (soundEnabled && !document.hidden) void audio.enableFromGesture().catch(() => {});
+  if (soundEnabled && !document.hidden) void audio.enableFromGesture().catch(() => { soundEnabled = false; updateSoundControl(); });
 });
 document.addEventListener('visibilitychange', () => { if (document.hidden) audio.suspend(); });
 window.addEventListener('pagehide', () => audio.dispose());

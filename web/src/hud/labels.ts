@@ -109,8 +109,11 @@ export class LabelLayer {
       const content = `${target.namespace} · ${target.total} pods · ${target.dense ? 'Dense' : `${target.unhealthy} unhealthy`}`;
       this.updateNamespace(entry, target, content);
 
-      const rect = above(target.x, target.y, entry);
-      if (!fits(rect, placed)) return;
+      // Keep summaries close to their namespace, stepping upward only when
+      // neighbouring bubbles project onto the same row.
+      const candidates = Array.from({ length: 8 }, (_, row) => above(target.x, target.y - row * (entry.height + GAP * 2), entry));
+      const rect = candidates.find(candidate => fits(candidate, placed));
+      if (!rect) return;
 
       this.place(entry, rect);
       placed.push(expand(rect, GAP));

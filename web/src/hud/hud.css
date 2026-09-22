@@ -603,7 +603,7 @@ body.attack .crosshair {
   white-space: nowrap;
   backdrop-filter: blur(4px);
   pointer-events: none;
-  opacity: 0; transition: opacity .15s;
+  opacity: 0; 
   max-width: min(240px, calc(100vw - 32px)); overflow: hidden; text-overflow: ellipsis;
 }
 .pod-label.visible { opacity: 1; }
@@ -644,12 +644,12 @@ body.attack .crosshair {
 .pod-label.focused .ns { color: rgba(255,255,255,0.7); border-right-color: rgba(255,255,255,0.25); }
 .namespace-label {
   position: absolute; left: 0; top: 0;
-  max-width: min(240px, calc(100vw - 32px)); overflow: hidden; text-overflow: ellipsis;
+  max-width: min(320px, calc(100vw - 32px)); overflow: hidden; text-overflow: ellipsis;
   padding: 3px 8px; border: 1px solid rgba(110,195,244,.38); border-radius: 6px;
   color: #eaf6ff; background: rgba(3, 15, 29, .92);
   font: 600 11px/1.35 ui-monospace, SFMono-Regular, Menlo, monospace;
   opacity: 0; white-space: nowrap; pointer-events: none;
-  transition: opacity .15s;
+  
 }
 .namespace-label.visible { opacity: 1; }
 

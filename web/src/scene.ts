@@ -990,7 +990,7 @@ export class AquariumScene {
 
   private flashHit(uid: string) {
     const slot = this.slots.get(uid);
-    if (!slot) return;
+    if (!slot || this.reducedMotion) return;
     slot.hitFlashUntil = performance.now() / 1000 + 0.45;
     this.writeRenderColor(slot);
     (this.mesh.geometry.getAttribute('instanceColor') as THREE.InstancedBufferAttribute).needsUpdate = true;
@@ -1029,6 +1029,12 @@ export class AquariumScene {
   }
 
   private animateSubmarine(dt: number) {
+    if (this.reducedMotion) {
+      this.submarine.position.copy(this.submarineBasePos);
+      this.submarine.rotation.set(0, 0, 0);
+      this.prevCameraPos.copy(this.camera.position);
+      return;
+    }
     const now = performance.now() / 1000;
     const safeDt = Math.max(dt, 1 / 120);
     this.cameraFrameDelta.copy(this.camera.position).sub(this.prevCameraPos).multiplyScalar(1 / safeDt);
@@ -1128,7 +1134,7 @@ export class AquariumScene {
     for (let i = 0; i < 4; i++) {
       const angle = i * Math.PI / 2;
       const dir = new THREE.Vector3(Math.cos(angle), .4, Math.sin(angle)).multiplyScalar(2 * mul);
-      this.addFragment(origin.clone(), dir, .3 + i * .04, .24 * mul, new THREE.Color(1, .45, .12));
+      this.addFragment(origin.clone(), dir, .3 + i * .04, size * 1.72 * .2, new THREE.Color(1, .45, .12));
     }
     this.flashMesh.position.copy(origin);
     this.flashSize = mul;
