@@ -1,6 +1,6 @@
 import { Video } from "@remotion/media";
 import { useEffect, useState, type CSSProperties } from "react";
-import { AbsoluteFill, cancelRender, continueRender, delayRender, Easing, interpolate, Sequence, staticFile, useCurrentFrame, useVideoConfig } from "remotion";
+import { AbsoluteFill, Img, cancelRender, continueRender, delayRender, Easing, interpolate, Sequence, staticFile, useCurrentFrame, useVideoConfig } from "remotion";
 
 import timing from "../timing.json";
 
@@ -32,15 +32,8 @@ function Chart({ frame }: { frame: number }) {
     <path d="M740 470h720M1100 100v740" stroke={mint} strokeOpacity=".1" strokeDasharray="3 8" />
   </svg>;
 }
-function Whale({ frame }: { frame: number }) {
-  return <svg viewBox="0 0 600 360" style={{ width: 610, position: "absolute", right: 15, top: 310, transform: `translateY(${Math.sin(frame / 28) * 8}px) rotate(-8deg)` }}>
-    <path d="M104 126C177 55 371 66 414 139C449 159 479 132 486 105C515 103 541 80 551 49C563 94 542 139 511 157C545 172 556 202 549 233C528 207 506 203 485 209C466 182 442 178 412 190C372 259 174 270 106 212C79 191 76 151 104 126Z" fill={mint} />
-    <path d="M103 195C201 229 348 232 412 190C372 259 174 270 106 212Z" fill="#62ac99" />
-    <path d="M231 210C242 252 287 275 316 252L298 211" fill="#78bea5" />
-    <circle cx="126" cy="158" r="7" fill={ink} /><path d="M95 183Q137 199 172 184" fill="none" stroke={ink} strokeWidth="3" />
-    <path d="M165 96C160 56 181 37 197 29M166 72C145 53 137 39 140 26" fill="none" stroke={mint} strokeWidth="6" strokeLinecap="round" />
-    <g fill="none" stroke={mint} opacity=".55"><circle cx="69" cy="94" r="6" /><circle cx="57" cy="62" r="10" /><circle cx="72" cy="22" r="4" /></g>
-  </svg>;
+function Helm({ frame }: { frame: number }) {
+  return <Img src={staticFile("kubernetes-helm.png")} style={{ width: 570, height: 570, objectFit: "contain", position: "absolute", right: 25, top: 175, opacity: reveal(frame, 5), transform: `translateY(${Math.sin(frame / 32) * 7}px) rotate(${interpolate(reveal(frame, 5), [0, 1], [-8, 0])}deg)` }} />;
 }
 
 export const KubeAquariumDemo = ({ beats }: { beats: Beat[] }) => {
@@ -65,13 +58,13 @@ export const KubeAquariumDemo = ({ beats }: { beats: Beat[] }) => {
       <div style={styles.badge}><span style={styles.dot} /> SIMULATED DEMO <span style={{ opacity: .4 }}> / </span> NO CLUSTER CHANGES</div>
     </div>
     <Sequence durationInFrames={introFrames}>
-      <Whale frame={frame} />
+      <Helm frame={frame} />
       <div style={{ ...styles.intro, opacity: reveal(frame), transform: `translateY(${(1 - reveal(frame)) * 35}px)` }}>
         <div style={styles.eyebrow}>KUBERNETES, BELOW THE SURFACE</div>
         <div style={styles.headline}>YOUR CLUSTER.<br /><span style={{ color: mint }}>AN OCEAN</span><br /><span style={{ color: mint }}>OF POSSIBILITIES.</span></div>
         <p style={{ ...styles.introCopy, opacity: reveal(frame, 14) }}>Explore your workloads. Take the helm.<br />Watch recovery unfold.</p>
       </div>
-      <div style={{ position: "absolute", right: 120, top: 660, color: mint, fontSize: 13, letterSpacing: 2, opacity: reveal(frame, 24) }}>01 / POD SPECIMEN<br /><span style={{ display: "block", marginTop: 9, opacity: .5 }}>WORKLOAD → WHALE</span></div>
+      <div style={{ position: "absolute", right: 100, top: 765, color: mint, fontSize: 13, letterSpacing: 2, opacity: reveal(frame, 24) }}>01 / TAKE THE HELM<br /><span style={{ display: "block", marginTop: 9, opacity: .5 }}>KUBERNETES, BELOW THE SURFACE</span></div>
       <div style={styles.introFoot}><span>EXPLORE THE CLUSTER</span><span style={{ color: orange }}>↓ DIVE IN</span></div>
     </Sequence>
     <Sequence from={introFrames}>
@@ -92,7 +85,7 @@ export const KubeAquariumDemo = ({ beats }: { beats: Beat[] }) => {
         <div style={{ ...styles.headline, fontSize: 146, lineHeight: .95, marginTop: 30 }}>TAKE YOUR<br /><span style={{ color: mint }}>FIRST DIVE.</span></div>
         <div style={{ ...styles.introCopy, marginTop: 34 }}>Try the browser demo.<br />No Kubernetes setup required.</div>
         <div style={{ marginTop: 32, fontSize: 20, color: orange, letterSpacing: 2 }}>EXPLORE · INSPECT · RECOVER ↗</div>
-        <Whale frame={frame} />
+        <Helm frame={frame} />
       </div>}
     </Sequence>
     <div style={{ position: "absolute", bottom: 0, left: 0, height: 4, width: progress * 100 + "%", background: orange }} />

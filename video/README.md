@@ -38,6 +38,8 @@ BENCH_TARGET=final node scripts/benchmark-visual.mjs
 
 ## Launch art direction
 
-The film uses a nautical chart, a custom vector whale, warm paper lettering, sea-glass green and a signal-orange accent. Barlow Condensed supplies the large launch headlines; Barlow supplies the reading text. Both fonts are bundled locally under `public/fonts/` with their SIL Open Font Licenses. Render waits for both fonts, so no network font requests or platform font substitutions are needed.
+The film uses a nautical chart, a generated sculptural helm inspired by Kubernetes, warm paper lettering, sea-glass green and a signal-orange accent. Barlow Condensed supplies the large launch headlines; Barlow supplies the reading text. Both fonts are bundled locally under `public/fonts/` with their SIL Open Font Licenses. Render waits for both fonts, so no network font requests or platform font substitutions are needed.
 
 The 3.5-second opening and final three-second launch card surround the unaltered captured gameplay. Captions follow observed beats; request acceptance is never presented as recovery. The `fleet` beat showcases vehicle selection. `timing.json` is the shared source for the opening duration and composition frame rate; the composition, poster and GIF scripts read it directly.
+
+The opening artwork is `public/kubernetes-helm.png`, generated with the built-in ChatGPT image generator. It replaces the vector whale and is a project illustration, not the official Kubernetes logo. Gameplay footage is unchanged by this artwork update.
