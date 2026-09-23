@@ -55,3 +55,15 @@ For visual or workflow changes:
 
 All automated destructive interactions use synthetic local data and the existing
 network guards. Media refresh does not require access to a real cluster.
+
+## Social link previews
+
+Open Graph and large-image Twitter card tags are present in `web/index.html`, so
+preview crawlers can read them without running JavaScript. Absolute metadata URLs
+point to the public GitHub Pages demo. The 1200×630 image is
+`web/public/social/kubeaquarium.png`, copied into both build outputs.
+
+Regenerate it with `node video/scripts/make-social-preview.mjs` from the repository
+root. This reuses the launch artwork and bundled font. Review the image, rebuild
+both outputs, and check the deployed HTML and image URL after Pages completes.
+Include this card in media-freshness reviews when branding or share copy changes.
