@@ -32,6 +32,12 @@ export class DetailPanel {
     this.bindTabs();
     this.bindLogsControls();
     this.root.querySelector('[data-close]')?.addEventListener('click', () => this.hide());
+    this.root.addEventListener('keydown', (event) => {
+      if (event.key !== 'Escape') return;
+      event.preventDefault();
+      event.stopPropagation();
+      this.hide();
+    });
     this.expandButton.addEventListener('click', () => this.setExpanded(!this.expanded));
     this.setExpanded(false);
   }
@@ -62,6 +68,8 @@ export class DetailPanel {
     this.currentUid = undefined;
     this.currentPod = undefined;
   }
+
+  get isOpen() { return this.currentUid !== undefined; }
 
   isOpenFor(uid: string) { return this.currentUid === uid; }
 

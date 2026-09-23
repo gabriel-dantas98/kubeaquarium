@@ -12,6 +12,7 @@ import (
 
 	"github.com/gabriel-dantas98/kubeaquarium/internal/k8s"
 	"github.com/gorilla/websocket"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/client-go/kubernetes"
 )
 
@@ -22,12 +23,13 @@ type Server struct {
 	cs       kubernetes.Interface
 	hub      *Hub
 	ctxList  []k8s.ContextInfo
+	snapshot func() ([]k8s.PodView, error)
 }
 
 func New(addr string, staticFS fs.FS, watcher *k8s.Watcher, cs kubernetes.Interface, ctxList []k8s.ContextInfo) *Server {
 	return &Server{
 		addr: addr, staticFS: staticFS, watcher: watcher, cs: cs,
-		hub: NewHub(), ctxList: ctxList,
+		hub: NewHub(), ctxList: ctxList, snapshot: watcher.Snapshot,
 	}
 }
 
@@ -42,20 +44,20 @@ func (s *Server) Run(ctx context.Context) error {
 		json.NewEncoder(w).Encode(s.ctxList)
 	})
 
-	mux.HandleFunc("/api/snapshot", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]any{
-			"type": "snapshot",
-			"pods": s.watcher.Snapshot(),
-		})
-	})
+	mux.HandleFunc("/api/snapshot", s.handleSnapshot)
 
 	mux.HandleFunc("/api/stream", s.handleWS)
 	mux.HandleFunc("/api/pod/", s.handlePodOps)
 
 	// fan out events to hub
 	go func() {
-		for ev := range s.watcher.Events() {
+		for {
+			var ev k8s.Event
+			select {
+			case <-ctx.Done():
+				return
+			case ev = <-s.watcher.Events():
+			}
 			b, err := json.Marshal(ev)
 			if err == nil {
 				s.hub.Broadcast(b)
@@ -90,38 +92,73 @@ func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
 	}
 	defer conn.Close()
 
-	// send snapshot first
-	snap := map[string]any{"type": "snapshot", "pods": s.watcher.Snapshot()}
-	if err := conn.WriteJSON(snap); err != nil {
-		return
-	}
-
 	ch := s.hub.Register()
 	defer s.hub.Unregister(ch)
+	s.serveStream(conn, ch, 5*time.Second)
+}
+
+func (s *Server) handleSnapshot(w http.ResponseWriter, r *http.Request) {
+	pods, err := s.snapshot()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusServiceUnavailable)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]any{"type": "snapshot", "pods": pods})
+}
+
+func (s *Server) serveStream(conn *websocket.Conn, ch <-chan []byte, interval time.Duration) {
+	pods, err := s.snapshot()
+	if err != nil {
+		return
+	}
+	if err := conn.WriteJSON(map[string]any{"type": "snapshot", "pods": pods}); err != nil {
+		return
+	}
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	done := make(chan struct{})
 
 	// read pump (just drain to detect close)
 	go func() {
+		defer close(done)
 		for {
 			if _, _, err := conn.NextReader(); err != nil {
-				_ = conn.Close()
 				return
 			}
 		}
 	}()
 
-	for msg := range ch {
-		if err := conn.WriteMessage(websocket.TextMessage, msg); err != nil {
+	for {
+		select {
+		case <-done:
 			return
+		case msg, ok := <-ch:
+			if !ok {
+				return
+			}
+			if err := conn.WriteMessage(websocket.TextMessage, msg); err != nil {
+				return
+			}
+		case <-ticker.C:
+			pods, err := s.snapshot()
+			if err != nil {
+				return
+			}
+			if err := conn.WriteJSON(map[string]any{"type": "snapshot", "pods": pods}); err != nil {
+				return
+			}
 		}
 	}
 }
 
 // handlePodOps routes:
-//   DELETE /api/pod/{ns}/{name}
-//   GET /api/pod/{ns}/{name}/yaml
-//   GET /api/pod/{ns}/{name}/events
-//   GET /api/pod/{ns}/{name}/containers
-//   GET /api/pod/{ns}/{name}/logs?container=&tail=200&follow=1
+//
+//	DELETE /api/pod/{ns}/{name}
+//	GET /api/pod/{ns}/{name}/yaml
+//	GET /api/pod/{ns}/{name}/events
+//	GET /api/pod/{ns}/{name}/containers
+//	GET /api/pod/{ns}/{name}/logs?container=&tail=200&follow=1
 func (s *Server) handlePodOps(w http.ResponseWriter, r *http.Request) {
 	// Trim prefix and split path
 	path := strings.TrimPrefix(r.URL.Path, "/api/pod/")
@@ -132,13 +169,27 @@ func (s *Server) handlePodOps(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		ns, name := parts[0], parts[1]
-		if err := k8s.DeletePod(r.Context(), s.cs, ns, name); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+		uid := r.URL.Query().Get("uid")
+		if uid == "" {
+			http.Error(w, "uid is required", http.StatusBadRequest)
+			return
+		}
+		if err := k8s.DeletePod(r.Context(), s.cs, ns, name, uid); err != nil {
+			status := http.StatusInternalServerError
+			switch {
+			case apierrors.IsForbidden(err):
+				status = http.StatusForbidden
+			case apierrors.IsNotFound(err):
+				status = http.StatusNotFound
+			case apierrors.IsConflict(err):
+				status = http.StatusConflict
+			}
+			http.Error(w, err.Error(), status)
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusAccepted)
-		json.NewEncoder(w).Encode(map[string]any{"deleted": true})
+		json.NewEncoder(w).Encode(map[string]any{"accepted": true, "uid": uid})
 		return
 	}
 	if len(parts) != 3 {

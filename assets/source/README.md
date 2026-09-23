@@ -7,10 +7,11 @@
 - Author: Sketlux
 - Collaborator: yd
 - License: CC0
-- Runtime export: `web/public/models/missile-submarine.glb`
+- Historical source reference; the current selectable vessels are procedural models
+  in `web/src/submarine.ts`. This source is not loaded by the application.
 
 Convert with:
 
 ```bash
-scripts/convert-blend-to-glb.sh assets/source/missilesub1.blend web/public/models/missile-submarine.glb
+scripts/convert-blend-to-glb.sh assets/source/missilesub1.blend /tmp/missile-submarine.glb
 ```

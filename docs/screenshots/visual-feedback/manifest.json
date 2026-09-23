@@ -1,0 +1,173 @@
+{
+  "url": "http://127.0.0.1:7781/?demo",
+  "startedAt": "2026-09-23T13:25:27.408Z",
+  "captures": [
+    {
+      "file": "/Users/gdantas/git/gdantas/kubeaquarium-game-experience/docs/screenshots/visual-feedback/1600x900-overview.png",
+      "stage": "overview",
+      "size": [
+        1600,
+        900
+      ],
+      "reduced": false,
+      "labelsNonIntersecting": true
+    },
+    {
+      "file": "/Users/gdantas/git/gdantas/kubeaquarium-game-experience/docs/screenshots/visual-feedback/1600x900-filter.png",
+      "stage": "filter",
+      "size": [
+        1600,
+        900
+      ],
+      "reduced": false,
+      "labelsNonIntersecting": true
+    },
+    {
+      "file": "/Users/gdantas/git/gdantas/kubeaquarium-game-experience/docs/screenshots/visual-feedback/1600x900-radar.png",
+      "stage": "radar",
+      "size": [
+        1600,
+        900
+      ],
+      "reduced": false,
+      "labelsNonIntersecting": true
+    },
+    {
+      "file": "/Users/gdantas/git/gdantas/kubeaquarium-game-experience/docs/screenshots/visual-feedback/1600x900-focus.png",
+      "stage": "focus",
+      "size": [
+        1600,
+        900
+      ],
+      "reduced": false,
+      "labelsNonIntersecting": true
+    },
+    {
+      "file": "/Users/gdantas/git/gdantas/kubeaquarium-game-experience/docs/screenshots/visual-feedback/1600x900-dive.png",
+      "stage": "dive",
+      "size": [
+        1600,
+        900
+      ],
+      "reduced": false,
+      "labelsNonIntersecting": true
+    },
+    {
+      "file": "/Users/gdantas/git/gdantas/kubeaquarium-game-experience/docs/screenshots/visual-feedback/1600x900-impact.png",
+      "stage": "impact",
+      "size": [
+        1600,
+        900
+      ],
+      "reduced": false,
+      "labelsNonIntersecting": true
+    },
+    {
+      "file": "/Users/gdantas/git/gdantas/kubeaquarium-game-experience/docs/screenshots/visual-feedback/1600x900-dive-reduced.png",
+      "stage": "dive",
+      "size": [
+        1600,
+        900
+      ],
+      "reduced": true,
+      "labelsNonIntersecting": true
+    },
+    {
+      "file": "/Users/gdantas/git/gdantas/kubeaquarium-game-experience/docs/screenshots/visual-feedback/1600x900-impact-reduced.png",
+      "stage": "impact",
+      "size": [
+        1600,
+        900
+      ],
+      "reduced": true,
+      "labelsNonIntersecting": true
+    },
+    {
+      "file": "/Users/gdantas/git/gdantas/kubeaquarium-game-experience/docs/screenshots/visual-feedback/1280x720-overview.png",
+      "stage": "overview",
+      "size": [
+        1280,
+        720
+      ],
+      "reduced": false,
+      "labelsNonIntersecting": true
+    },
+    {
+      "file": "/Users/gdantas/git/gdantas/kubeaquarium-game-experience/docs/screenshots/visual-feedback/1280x720-filter.png",
+      "stage": "filter",
+      "size": [
+        1280,
+        720
+      ],
+      "reduced": false,
+      "labelsNonIntersecting": true
+    },
+    {
+      "file": "/Users/gdantas/git/gdantas/kubeaquarium-game-experience/docs/screenshots/visual-feedback/1280x720-radar.png",
+      "stage": "radar",
+      "size": [
+        1280,
+        720
+      ],
+      "reduced": false,
+      "labelsNonIntersecting": true
+    },
+    {
+      "file": "/Users/gdantas/git/gdantas/kubeaquarium-game-experience/docs/screenshots/visual-feedback/1280x720-focus.png",
+      "stage": "focus",
+      "size": [
+        1280,
+        720
+      ],
+      "reduced": false,
+      "labelsNonIntersecting": true
+    },
+    {
+      "file": "/Users/gdantas/git/gdantas/kubeaquarium-game-experience/docs/screenshots/visual-feedback/1280x720-dive.png",
+      "stage": "dive",
+      "size": [
+        1280,
+        720
+      ],
+      "reduced": false,
+      "labelsNonIntersecting": true
+    },
+    {
+      "file": "/Users/gdantas/git/gdantas/kubeaquarium-game-experience/docs/screenshots/visual-feedback/1280x720-impact.png",
+      "stage": "impact",
+      "size": [
+        1280,
+        720
+      ],
+      "reduced": false,
+      "labelsNonIntersecting": true
+    },
+    {
+      "file": "/Users/gdantas/git/gdantas/kubeaquarium-game-experience/docs/screenshots/visual-feedback/1280x720-dive-reduced.png",
+      "stage": "dive",
+      "size": [
+        1280,
+        720
+      ],
+      "reduced": true,
+      "labelsNonIntersecting": true
+    },
+    {
+      "file": "/Users/gdantas/git/gdantas/kubeaquarium-game-experience/docs/screenshots/visual-feedback/1280x720-impact-reduced.png",
+      "stage": "impact",
+      "size": [
+        1280,
+        720
+      ],
+      "reduced": true,
+      "labelsNonIntersecting": true
+    }
+  ],
+  "errors": [],
+  "impactCapture": {
+    "timing": "immediately after lastAttackHitUid changes",
+    "effectDurationMs": 250,
+    "limitation": "A screenshot may miss particles if compositor scheduling exceeds the short effect duration."
+  },
+  "finishedAt": "2026-09-23T13:25:35.761Z"
+}

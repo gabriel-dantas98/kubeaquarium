@@ -5,7 +5,7 @@ import (
 )
 
 type Hub struct {
-	mu      sync.RWMutex
+	mu      sync.Mutex
 	clients map[chan []byte]struct{}
 }
 
@@ -31,13 +31,14 @@ func (h *Hub) Unregister(ch chan []byte) {
 }
 
 func (h *Hub) Broadcast(msg []byte) {
-	h.mu.RLock()
-	defer h.mu.RUnlock()
+	h.mu.Lock()
+	defer h.mu.Unlock()
 	for ch := range h.clients {
 		select {
 		case ch <- msg:
 		default:
-			// slow client; drop
+			delete(h.clients, ch)
+			close(ch)
 		}
 	}
 }

@@ -1,36 +1,45 @@
 # kubeaquarium demo video
 
-Remotion project for the README demo video.
+The video records only the repeatable simulated recovery mission. It never connects to a Kubernetes API: the capture and verifier reject any `/api/` request or non-read network method, and refuse URLs that are not local `?demo` URLs.
 
-## Capture footage
-
-Start kubeaquarium first:
+Use two terminals. Start the demo app in the first:
 
 ```bash
-go run ./cmd/kubeaquarium --addr 127.0.0.1:7781 --no-open --namespace monitoring
+cd web
+npm run dev -- --host 127.0.0.1 --port 7781
 ```
 
-Then capture browser footage:
+Then validate and capture in the second (keep enough free disk space for temporary render frames):
 
 ```bash
 cd video
-pnpm install
-DEMO_URL=http://127.0.0.1:7781 pnpm run capture
+DEMO_URL='http://127.0.0.1:7781/?demo' node scripts/verify-recovery.mjs
+DEMO_URL='http://127.0.0.1:7781/?demo' pnpm capture
+pnpm lint
+pnpm render
+pnpm still
+pnpm preview
 ```
 
-The capture script writes `public/kubeaquarium-footage.webm`.
-It records at 960x540 so the source footage stays small enough for the repo.
+Capture writes `public/kubeaquarium-footage.webm` and `public/kubeaquarium-beats.json`. The Remotion composition reads the captured beats and uses a 3.5-second opening, trims the loading frames, and ends three seconds after the final beat at 30 FPS. Rendering creates `../docs/video/kubeaquarium-demo.mp4`; the still creates `../docs/video/kubeaquarium-demo-poster.png` one second after the captured `ready` beat. The poster script derives its frame from the capture timestamps, so a changed playthrough duration does not leave the poster on the wrong chapter.
 
-## Render
+The final video is 1440×940, framing the 1280×720 recording with a header and a separate caption/chapter strip. The opening, namespace filter, radar, vehicle selection, pod inspection, submarine and observed recovery are driven by actual captured beats. Review the poster and frames from radar, inspection and Ready before publishing.
+
+`pnpm preview` creates `../docs/video/kubeaquarium-demo-preview.gif`, a 720-pixel-wide, 8 FPS montage for the README. It links to the full MP4. The video is intentionally silent so the demo is understandable without audio. FFmpeg is required for MP4 optimization and the preview.
+
+## Visual benchmark
+
+The benchmark uses a separate, clean checkout for the baseline. Set `BENCH_BASELINE_ROOT` to that checkout's `web` directory; the runner records its repository and revision in `metrics.json` and refuses tracked changes.
 
 ```bash
-pnpm run still
-pnpm run render
+BENCH_TARGET=baseline BENCH_BASELINE_ROOT='/absolute/path/to/baseline/web' node scripts/benchmark-visual.mjs
+BENCH_TARGET=final node scripts/benchmark-visual.mjs
 ```
 
-Outputs:
+## Launch art direction
 
-- `../docs/video/kubeaquarium-demo-poster.png`
-- `../docs/video/kubeaquarium-demo.mp4`
+The film uses a nautical chart, a generated sculptural helm inspired by Kubernetes, warm paper lettering, sea-glass green and a signal-orange accent. Barlow Condensed supplies the large launch headlines; Barlow supplies the reading text. Both fonts are bundled locally under `public/fonts/` with their SIL Open Font Licenses. Render waits for both fonts, so no network font requests or platform font substitutions are needed.
 
-`pnpm run render` runs Remotion first, then recompresses the MP4 with FFmpeg (`crf=34`, no audio, 960x540, 24 FPS) to keep the checked-in README demo small.
+The 3.5-second opening and final three-second launch card surround the unaltered captured gameplay. Captions follow observed beats; request acceptance is never presented as recovery. The `fleet` beat showcases vehicle selection. `timing.json` is the shared source for the opening duration and composition frame rate; the composition, poster and GIF scripts read it directly.
+
+The opening artwork is `public/kubernetes-helm.png`, generated with the built-in ChatGPT image generator. It replaces the vector whale and is a project illustration, not the official Kubernetes logo. Gameplay footage is unchanged by this artwork update.

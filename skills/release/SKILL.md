@@ -18,6 +18,8 @@ release action requiring explicit user confirmation before you do it.
 
 ## Steps
 
+Before the release steps, apply [review-demo-media](../review-demo-media/SKILL.md) and resolve any stale media or explicitly report the blocker.
+
 1. **Check for pending work.** `git status`, `git log origin/main..HEAD` — make sure
    everything intended for the release is merged into `main`. If there's an open PR with
    the changes, confirm with the user whether to merge it first (squash merge is the

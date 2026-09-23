@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { isUIEvent } from './input';
 
 /**
  * Hybrid camera controller.
@@ -8,10 +9,11 @@ import * as THREE from 'three';
  *   - 'focus': cinematic dolly to a specific point (when a whale is clicked).
  *   - 'dive':   submarine dive mode, WASD movement with a HUD reticle.
  *
- * Press F to toggle dive mode; ESC returns to orbit.
+ * Press F to toggle dive mode. Escape handling belongs to the UI composition.
  */
 
-type Mode = 'orbit' | 'focus' | 'dive';
+export type Mode = 'orbit' | 'focus' | 'dive';
+export interface CameraPreferences { lookSensitivity: number; invertY: boolean; reducedMotion: boolean }
 
 const KEYS = { fwd: ['KeyW','ArrowUp'], back: ['KeyS','ArrowDown'], left: ['KeyA','ArrowLeft'], right: ['KeyD','ArrowRight'], up: ['Space'], down: ['ShiftLeft','ShiftRight'] };
 
@@ -23,6 +25,17 @@ export class HybridCamera {
   private target = new THREE.Vector3(0, 0, 0);
   private spherical = new THREE.Spherical(60, Math.PI / 2.6, 0);
   private dragging = false;
+  private looking = false;
+  private dragPointer: number | null = null;
+  private dragStartX = 0;
+  private dragStartY = 0;
+  private dragDistance = 0;
+  private dragClick = false;
+  private blocked = false;
+  private preferences: CameraPreferences = {
+    lookSensitivity: 1, invertY: false,
+    reducedMotion: typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches,
+  };
   private lastX = 0;
   private lastY = 0;
 
@@ -60,6 +73,51 @@ export class HybridCamera {
     this.bind();
   }
 
+  get isLooking() { return this.looking; }
+  get isInputBlocked() { return this.blocked; }
+  get direction() { return this.cameraForward(); }
+  get currentPreferences(): CameraPreferences { return { ...this.preferences }; }
+
+  setPreferences(value: CameraPreferences) {
+    this.preferences = {
+      lookSensitivity: Number.isFinite(value.lookSensitivity) ? THREE.MathUtils.clamp(value.lookSensitivity, 0.25, 2) : 1,
+      invertY: value.invertY === true,
+      reducedMotion: value.reducedMotion === true,
+    };
+    if (this.preferences.reducedMotion) {
+      this.removeShake();
+      // Reduced motion must also stop an already gliding submarine immediately.
+      this.velocity.set(0, 0, 0);
+    }
+  }
+
+  clearInput() {
+    this.keys.clear();
+    this.velocity.set(0, 0, 0);
+    this.dragging = false;
+    this.looking = false;
+    if (this.dragPointer !== null && this.el.hasPointerCapture?.(this.dragPointer)) this.el.releasePointerCapture(this.dragPointer);
+    this.dragPointer = null;
+  }
+
+  setInputBlocked(blocked: boolean) {
+    this.blocked = blocked;
+    if (blocked) this.clearInput();
+  }
+
+  consumeDragClick(): boolean {
+    const consumed = this.dragClick;
+    this.dragClick = false;
+    return consumed;
+  }
+
+  private removeShake() {
+    this.camera.position.sub(this.shakeOffset);
+    this.shakeOffset.set(0, 0, 0);
+    this.shakeAmp = 0;
+    this.shakeTime = 0;
+  }
+
   setOrbitTarget(t: THREE.Vector3) {
     this.target.copy(t);
     this.applyOrbit();
@@ -70,6 +128,17 @@ export class HybridCamera {
    * `lookAt` is the whale center; `from` is where the camera should end up.
    */
   focusOn(lookAt: THREE.Vector3, from: THREE.Vector3, duration = 0.9, onDone?: () => void) {
+    this.clearInput();
+    this.removeShake();
+    if (this.preferences.reducedMotion) {
+      this.target.copy(lookAt);
+      this.camera.position.copy(from);
+      this.spherical.setFromVector3(this.camera.position.clone().sub(this.target));
+      this.mode = 'orbit';
+      this.applyOrbit();
+      onDone?.();
+      return;
+    }
     this.mode = 'focus';
     this.focusFrom.copy(this.camera.position);
     this.focusTo.copy(from);
@@ -82,6 +151,9 @@ export class HybridCamera {
 
   enterDive() {
     if (this.mode === 'dive') return;
+    this.clearInput();
+    this.removeShake();
+    this.onFocusDone = undefined;
     this.mode = 'dive';
     document.body.classList.add('dive');
     // Initialize yaw/pitch from current camera orientation
@@ -92,6 +164,8 @@ export class HybridCamera {
   }
 
   exitDive() {
+    this.clearInput();
+    this.removeShake();
     document.body.classList.remove('dive');
     this.target.copy(this.camera.position).add(this.cameraForward().multiplyScalar(20));
     this.spherical.setFromVector3(this.camera.position.clone().sub(this.target));
@@ -99,7 +173,32 @@ export class HybridCamera {
   }
 
   resetToOrbit() {
+    this.clearInput();
+    this.removeShake();
     if (this.mode === 'dive') { this.exitDive(); return; }
+    this.mode = 'orbit';
+    this.applyOrbit();
+  }
+
+  frameBounds(bounds: THREE.Box3) {
+    this.clearInput();
+    this.removeShake();
+    this.onFocusDone = undefined;
+    document.body.classList.remove('dive');
+    const sphere = new THREE.Sphere();
+    if (bounds.isEmpty()) sphere.set(new THREE.Vector3(), 10);
+    else bounds.getBoundingSphere(sphere);
+    const vFov = THREE.MathUtils.degToRad(this.camera.fov);
+    const hFov = 2 * Math.atan(Math.tan(vFov / 2) * this.camera.aspect);
+    const distance = sphere.radius / Math.sin(Math.min(vFov, hFov) / 2) * 1.1;
+    const oldDirection = this.camera.position.clone().sub(this.target).normalize();
+    if (oldDirection.lengthSq() < 0.5) oldDirection.set(0, 0.4, 1).normalize();
+    this.target.copy(sphere.center);
+    this.camera.position.copy(sphere.center).addScaledVector(oldDirection, distance);
+    this.spherical.setFromVector3(this.camera.position.clone().sub(this.target));
+    this.camera.near = Math.max(0.01, Math.min(0.1, distance - sphere.radius));
+    this.camera.far = Math.max(500, distance + sphere.radius * 3);
+    this.camera.updateProjectionMatrix();
     this.mode = 'orbit';
     this.applyOrbit();
   }
@@ -122,6 +221,7 @@ export class HybridCamera {
    * next update, so integrated modes (dive) never drift.
    */
   impulse(strength = 1) {
+    if (this.preferences.reducedMotion) return;
     this.shakeAmp = Math.min(0.24, 0.13 * strength + this.shakeAmp * 0.4);
     this.shakeTime = this.shakeDuration;
     this.shakeSeed = Math.random() * 100;
@@ -185,7 +285,8 @@ export class HybridCamera {
 
       // Smooth velocity
       const targetVel = accel.multiplyScalar(this.diveSpeed);
-      this.velocity.lerp(targetVel, Math.min(1, dt * 6));
+      if (this.preferences.reducedMotion) this.velocity.copy(targetVel);
+      else this.velocity.lerp(targetVel, Math.min(1, dt * 8));
       this.camera.position.addScaledVector(this.velocity, dt);
 
       this.camera.lookAt(this.camera.position.clone().add(fwd));
@@ -202,37 +303,66 @@ export class HybridCamera {
   }
 
   private bind() {
-    this.el.addEventListener('mousedown', (e) => {
-      if (this.mode !== 'orbit') return;
-      this.dragging = true;
-      this.lastX = e.clientX; this.lastY = e.clientY;
+    this.el.addEventListener('pointerdown', (e) => {
+      if (this.blocked || isUIEvent(e) || e.defaultPrevented) return;
+      if ((this.mode === 'orbit' && e.button !== 0) || (this.mode === 'dive' && e.button !== 2) || this.mode === 'focus') return;
+      this.dragging = this.mode === 'orbit';
+      this.looking = this.mode === 'dive';
+      this.dragPointer = e.pointerId;
+      this.dragClick = false;
+      this.dragDistance = 0;
+      this.dragStartX = this.lastX = e.clientX;
+      this.dragStartY = this.lastY = e.clientY;
+      this.el.setPointerCapture(e.pointerId);
     });
-    window.addEventListener('mouseup', () => { this.dragging = false; });
-    window.addEventListener('mousemove', (e) => {
-      if (!this.dragging || this.mode !== 'orbit') return;
+    this.el.addEventListener('pointermove', (e) => {
+      if (this.dragPointer !== e.pointerId || (!this.dragging && !this.looking)) return;
       const dx = e.clientX - this.lastX;
       const dy = e.clientY - this.lastY;
       this.lastX = e.clientX; this.lastY = e.clientY;
-      this.spherical.theta -= dx * 0.005;
-      this.spherical.phi -= dy * 0.005;
-      this.spherical.phi = THREE.MathUtils.clamp(this.spherical.phi, 0.15, Math.PI - 0.15);
+      this.dragDistance = Math.max(this.dragDistance, Math.hypot(e.clientX - this.dragStartX, e.clientY - this.dragStartY));
+      if (this.dragging) {
+        this.spherical.theta -= dx * 0.005;
+        this.spherical.phi = THREE.MathUtils.clamp(this.spherical.phi - dy * 0.005, 0.15, Math.PI - 0.15);
+      } else {
+        this.yaw -= dx * 0.003 * this.preferences.lookSensitivity;
+        this.pitch = THREE.MathUtils.clamp(this.pitch + dy * 0.003 * this.preferences.lookSensitivity * (this.preferences.invertY ? 1 : -1), -Math.PI * 0.47, Math.PI * 0.47);
+        this.camera.lookAt(this.camera.position.clone().add(new THREE.Vector3(Math.sin(this.yaw) * Math.cos(this.pitch), Math.sin(this.pitch), Math.cos(this.yaw) * Math.cos(this.pitch))));
+      }
     });
+    const endDrag = (e: PointerEvent) => {
+      if (this.dragPointer !== e.pointerId) return;
+      this.dragClick = this.dragging && this.dragDistance > 5;
+      this.dragging = false;
+      this.looking = false;
+      if (this.el.hasPointerCapture(e.pointerId)) this.el.releasePointerCapture(e.pointerId);
+      this.dragPointer = null;
+    };
+    this.el.addEventListener('pointerup', endDrag);
+    this.el.addEventListener('pointercancel', endDrag);
+    this.el.addEventListener('contextmenu', e => { if (this.mode === 'dive') e.preventDefault(); });
     this.el.addEventListener('wheel', (e) => {
-      if (this.mode !== 'orbit') return;
+      if (this.mode !== 'orbit' || this.blocked || isUIEvent(e)) return;
       e.preventDefault();
       this.spherical.radius *= 1 + Math.sign(e.deltaY) * 0.08;
-      this.spherical.radius = THREE.MathUtils.clamp(this.spherical.radius, 5, 220);
+      this.spherical.radius = THREE.MathUtils.clamp(this.spherical.radius, 5, Math.max(220, this.camera.far * 0.8));
     }, { passive: false });
 
     window.addEventListener('keydown', (e) => {
-      this.keys.add(e.code);
-      if (e.code === 'KeyF') {
+      if (this.blocked || isUIEvent(e) || e.defaultPrevented || e.ctrlKey || e.metaKey || e.altKey) return;
+      if (e.code === 'KeyF' && !e.repeat) {
+        e.preventDefault();
         if (this.mode === 'dive') this.exitDive();
         else this.enterDive();
       }
-      else if (e.code === 'Escape') this.resetToOrbit();
+      else if (this.mode === 'dive' && Object.values(KEYS).some(codes => codes.includes(e.code))) {
+        e.preventDefault();
+        this.keys.add(e.code);
+      }
     });
     window.addEventListener('keyup', (e) => this.keys.delete(e.code));
+    window.addEventListener('blur', () => this.clearInput());
+    document.addEventListener('visibilitychange', () => { if (document.hidden) this.clearInput(); });
 
   }
 }

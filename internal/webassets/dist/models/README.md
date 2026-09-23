@@ -1,6 +1,5 @@
 # Runtime Models
 
-`missile-submarine.glb` is exported from `assets/source/missilesub1.blend`.
-
-The source model is CC0 from OpenGameArt:
-https://opengameart.org/content/ballistic-missile-submarine
+The three vessels are generated in `web/src/submarine.ts`; no external model download
+is required at runtime. The original Blender source is retained in `assets/source/`
+for asset authoring reference, but its obsolete runtime GLB is no longer shipped.

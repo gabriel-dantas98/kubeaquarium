@@ -1,0 +1,46 @@
+[
+  {
+    "name": "overview",
+    "at": 0.26
+  },
+  {
+    "name": "filter",
+    "at": 4.47
+  },
+  {
+    "name": "radar",
+    "at": 8.15
+  },
+  {
+    "name": "fleet",
+    "at": 11.69
+  },
+  {
+    "name": "inspect",
+    "at": 15.44
+  },
+  {
+    "name": "dive",
+    "at": 20.91
+  },
+  {
+    "name": "request",
+    "at": 23.49
+  },
+  {
+    "name": "absent",
+    "at": 24.27
+  },
+  {
+    "name": "candidate",
+    "at": 25.05
+  },
+  {
+    "name": "ready",
+    "at": 26.84
+  },
+  {
+    "name": "closing",
+    "at": 31.68
+  }
+]

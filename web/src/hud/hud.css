@@ -30,7 +30,7 @@ html, body {
 body.dive #scene { cursor: none; }
 
 #hud {
-  position: fixed; inset: 0; pointer-events: none;
+  position: fixed; inset: 0; z-index: 20; pointer-events: none;
   font-size: 13px;
 }
 #hud > * { pointer-events: auto; }
@@ -443,10 +443,15 @@ body.attack .crosshair {
   position: absolute;
   width: 6px;
   height: 6px;
+  box-sizing: border-box;
+  padding: 0;
+  border: 0;
+  appearance: none;
   border-radius: 50%;
   transform: translate(-50%, -50%);
   background: #6ec3f4;
   box-shadow: 0 0 10px rgba(110,195,244,0.78);
+  cursor: pointer;
 }
 .radar-blip.active {
   width: 10px;
@@ -454,11 +459,46 @@ body.attack .crosshair {
   background: #4ade80;
   box-shadow: 0 0 16px rgba(74,222,128,0.95);
 }
+.radar-heading,
+.radar-status-line {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: calc(100% - 20px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: center;
+  pointer-events: none;
+  text-shadow: 0 1px 4px rgba(0,0,0,0.9);
+}
+.radar-heading {
+  top: 22%;
+  color: var(--accent-soft);
+  font-size: 10px;
+  letter-spacing: 0.7px;
+}
+.radar-status-line {
+  bottom: 22%;
+  color: var(--text);
+  font-size: 10px;
+}
 .radar-console {
   min-width: 0;
   display: flex;
   flex-direction: column;
   gap: 10px;
+}
+.radar-range {
+  margin-left: auto;
+  min-width: 92px;
+  padding: 3px 20px 3px 7px;
+  color: var(--text);
+  background: #071628;
+  border: 1px solid rgba(110,195,244,0.32);
+  border-radius: 5px;
+  font: inherit;
+  font-size: 11px;
 }
 .radar-head {
   display: flex;
@@ -589,12 +629,12 @@ body.attack .crosshair {
 /* ------- Floating pod labels ------- */
 
 #labels {
-  position: fixed; inset: 0; pointer-events: none;
+  position: fixed; inset: 0; z-index: 10; pointer-events: none;
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
 .pod-label {
-  position: absolute; transform: translate(-50%, -100%);
-  background: rgba(7, 22, 40, 0.78);
+  position: absolute; left: 0; top: 0;
+  background: rgba(3, 15, 29, 0.92);
   border: 1px solid rgba(110,195,244,0.25);
   border-radius: 6px;
   padding: 2px 8px;
@@ -603,8 +643,8 @@ body.attack .crosshair {
   white-space: nowrap;
   backdrop-filter: blur(4px);
   pointer-events: none;
-  opacity: 0; transition: opacity .15s;
-  max-width: 320px; overflow: hidden; text-overflow: ellipsis;
+  opacity: 0; 
+  max-width: min(240px, calc(100vw - 32px)); overflow: hidden; text-overflow: ellipsis;
 }
 .pod-label.visible { opacity: 1; }
 .pod-label.focused {
@@ -642,6 +682,16 @@ body.attack .crosshair {
   font-weight: 700;
 }
 .pod-label.focused .ns { color: rgba(255,255,255,0.7); border-right-color: rgba(255,255,255,0.25); }
+.namespace-label {
+  position: absolute; left: 0; top: 0;
+  max-width: min(320px, calc(100vw - 32px)); overflow: hidden; text-overflow: ellipsis;
+  padding: 3px 8px; border: 1px solid rgba(110,195,244,.38); border-radius: 6px;
+  color: #eaf6ff; background: rgba(3, 15, 29, .92);
+  font: 600 11px/1.35 ui-monospace, SFMono-Regular, Menlo, monospace;
+  opacity: 0; white-space: nowrap; pointer-events: none;
+  
+}
+.namespace-label.visible { opacity: 1; }
 
 /* ------- Empty state ------- */
 
@@ -704,3 +754,33 @@ body.attack .crosshair {
     text-align: center;
   }
 }
+
+/* The world layer never overlays interactive HUD surfaces. */
+.topbar, .hint { position: relative; z-index: 3; }
+.radar, .detail, .search { z-index: 5; }
+.navigation { display: flex; align-items: center; gap: 8px; }
+.navigation button, .navigation summary, #recovery-panel button, #demo-mission button {
+  font: inherit; color: var(--text); background: #0b2540; border: 1px solid var(--panel-border);
+  border-radius: 6px; padding: 6px 10px; cursor: pointer;
+}
+.navigation summary { list-style: none; }
+#camera-settings { position: relative; }
+.settings-panel { position: absolute; top: 38px; left: 0; width: 230px; padding: 16px; display: grid; gap: 14px; background: #071628; border: 1px solid var(--panel-border); border-radius: 10px; }
+.settings-panel label { display: block; }
+.settings-panel input[type=range] { width: 100%; }
+#recovery-panel { position: absolute; z-index: 4; right: 16px; top: 64px; width: 310px; max-height: 38vh; overflow: auto; }
+#recovery-panel:empty, #demo-mission:empty { display: none; }
+#recovery-panel article { padding: 12px; margin-bottom: 8px; background: #071628f5; border: 1px solid var(--panel-border); border-left: 3px solid var(--accent); border-radius: 8px; }
+#recovery-panel strong { display: block; overflow: hidden; text-overflow: ellipsis; }
+#recovery-panel p { line-height: 1.5; color: var(--text-dim); }
+#recovery-panel article[data-operation-phase=ready] { border-left-color: var(--ok); }
+#recovery-panel article[data-operation-phase=failed] { border-left-color: var(--err); }
+#demo-mission { position: absolute; z-index: 4; left: 16px; bottom: 78px; padding: 16px; width: 290px; background: #071628ed; border: 1px solid var(--panel-border); border-radius: 10px; }
+#demo-mission strong { color: var(--accent-soft); font-size: 11px; letter-spacing: .05em; }
+#demo-mission p { font-size: 16px; }
+#demo-mission button { margin: 3px; }
+body.reduced-motion *, body.reduced-motion *::before, body.reduced-motion *::after { animation: none !important; transition: none !important; }
+@media (prefers-reduced-motion: reduce) { .pod-label, .namespace-label, .radar-sweep { transition: none !important; animation: none !important; } }
+@media (max-width: 900px) { .topbar { flex-wrap: wrap; gap: 10px; } .navigation { order: 3; } .meta { gap: 8px; } #recovery-panel { top: 100px; width: 260px; } #demo-mission { width: 250px; bottom: 100px; } }
+#hud > #attack-frame { pointer-events: none; }
+.hint { position: absolute; }

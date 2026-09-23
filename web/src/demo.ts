@@ -1,5 +1,7 @@
 import type { Handler } from './stream';
 import type { PodView, StreamEvent } from './types';
+import type { DeleteAccepted } from './types';
+import type { PodOperations } from './operations';
 
 export const isDemoMode =
   import.meta.env.VITE_KUBEAQUARIUM_DEMO === '1' ||
@@ -16,17 +18,22 @@ const namespaces = [
 
 const reasons = ['', '', '', '', '', 'CrashLoopBackOff', 'ImagePullBackOff', 'Pending'];
 
-export class DemoStream {
+export class DemoStream implements PodOperations {
   onConnectionChange?: (connected: boolean) => void;
   private stopped = false;
   private timer?: number;
   private pods = buildDemoPods();
+  private generation = 0;
+  private handles = new Set<number>();
+  private pending = new Set<string>();
 
   constructor(private handler: Handler) {}
 
   start() {
+    this.stopped = false;
+    const generation = ++this.generation;
     window.setTimeout(() => {
-      if (this.stopped) return;
+      if (this.stopped || generation !== this.generation) return;
       this.onConnectionChange?.(true);
       this.handler({ type: 'snapshot', pods: this.pods });
       this.timer = window.setInterval(() => this.tick(), 1300);
@@ -35,13 +42,54 @@ export class DemoStream {
 
   stop() {
     this.stopped = true;
-    if (this.timer) window.clearInterval(this.timer);
+    ++this.generation;
+    for (const handle of this.handles) window.clearTimeout(handle);
+    this.handles.clear(); this.pending.clear();
+    if (this.timer !== undefined) window.clearInterval(this.timer);
+    this.timer = undefined;
     this.onConnectionChange?.(false);
+  }
+
+  async deletePod(pod: PodView): Promise<DeleteAccepted> {
+    if (this.stopped || this.pending.has(pod.uid) || !this.pods.some(p => p.uid === pod.uid)) throw new Error('Pod is no longer available');
+    this.pending.add(pod.uid);
+    const controller = pod.controller;
+    this.schedule(400, () => this.emit({ type: 'deleted', uid: pod.uid }));
+    if (!controller) return { accepted: true, uid: pod.uid };
+    const fixed = pod.uid === 'demo-mission-old';
+    const newUid = fixed ? 'demo-mission-new' : `demo-replacement-${pod.uid}-${this.generation}`;
+    const newName = fixed ? 'checkout-demo-new' : `${pod.name}-replacement`;
+    this.schedule(1200, () => this.emit({ type: 'added', pod: { ...pod, uid: newUid, name: newName, phase: 'Pending', ready: false, reason: '', restartCount: 0, deletionTimestamp: '', createdAt: new Date().toISOString() } }));
+    this.schedule(3200, () => { const current = this.pods.find(p => p.uid === newUid); if (current) this.emit({ type: 'updated', pod: { ...current, phase: 'Running', ready: true } }); this.pending.delete(pod.uid); });
+    return { accepted: true, uid: pod.uid };
+  }
+
+  resetMission() {
+    ++this.generation;
+    for (const handle of this.handles) window.clearTimeout(handle);
+    this.handles.clear(); this.pending.clear(); this.pods = buildDemoPods();
+    if (!this.stopped) this.handler({ type: 'snapshot', pods: this.pods });
+  }
+
+  private schedule(delay: number, callback: () => void) {
+    const generation = this.generation;
+    const handle = window.setTimeout(() => { this.handles.delete(handle); if (!this.stopped && generation === this.generation) callback(); }, delay);
+    this.handles.add(handle);
+  }
+
+  private emit(event: StreamEvent) {
+    if (event.type === 'added' || event.type === 'updated') {
+      const i = this.pods.findIndex(p => p.uid === event.pod.uid);
+      if (i < 0) this.pods.push(event.pod); else this.pods[i] = event.pod;
+    } else if (event.type === 'deleted') this.pods = this.pods.filter(p => p.uid !== event.uid);
+    this.handler(event);
   }
 
   private tick() {
     if (this.stopped || this.pods.length === 0) return;
-    const i = Math.floor(Math.random() * this.pods.length);
+    const mutable = this.pods.map((p, i) => ({p, i})).filter(({p}) => !p.uid.startsWith('demo-mission-'));
+    if (!mutable.length) return;
+    const i = mutable[Math.floor(Math.random() * mutable.length)].i;
     const pod = { ...this.pods[i] };
     pod.restartCount += pod.reason ? 1 : 0;
     pod.cpuMillis = Math.max(20, pod.cpuMillis + Math.round((Math.random() - 0.45) * 70));
@@ -123,7 +171,7 @@ export function demoLogs(p: PodView, container: string) {
 }
 
 function buildDemoPods(): PodView[] {
-  const pods: PodView[] = [];
+  const pods: PodView[] = [{ uid: 'demo-mission-old', name: 'checkout-demo-old', namespace: 'bench-payments', node: 'demo-node-1', phase: 'Running', ready: false, restartCount: 5, reason: 'CrashLoopBackOff', cpuMillis: 80, memMib: 128, createdAt: new Date(Date.now() - 120000).toISOString(), deletionTimestamp: '', controller: { apiVersion: 'apps/v1', kind: 'ReplicaSet', name: 'checkout-demo', uid: 'demo-rs-checkout' } }];
   let seq = 0;
   for (const [namespace, count] of namespaces) {
     for (let i = 0; i < count; i++) {
@@ -142,6 +190,8 @@ function buildDemoPods(): PodView[] {
         cpuMillis: 40 + ((seq * 37) % 900),
         memMib: 48 + ((seq * 53) % 1024),
         createdAt: new Date(Date.now() - (seq + 1) * 97_000).toISOString(),
+        deletionTimestamp: '',
+        controller: { apiVersion: 'apps/v1', kind: 'ReplicaSet', name: pickName(namespace, i), uid: `demo-controller-${namespace}-${i}` },
       });
       seq++;
     }
