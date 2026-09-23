@@ -65,6 +65,18 @@ try {
   await page.waitForTimeout(3_500);
   await page.keyboard.press('Escape');
 
+  await page.keyboard.press('f');
+  await page.waitForFunction(() => window.__kubeaquarium?.diveMode === true);
+  await page.locator('#camera-settings summary').click();
+  beat('fleet');
+  for (const model of ['nautilus', 'manta', 'atlas']) {
+    await page.locator('#submarine-model').selectOption(model);
+    await page.waitForTimeout(1_200);
+  }
+  await page.locator('#camera-settings summary').click();
+  await page.locator('#overview-toggle').click();
+  await page.waitForFunction(() => !window.__kubeaquarium?.diveMode);
+
   await mission.getByRole("button", { name: "Find pod" }).click();
   await mission.getByRole("button", { name: "Inspect failure" }).click();
   await page.locator("#demo-mission[data-mission-step=fire]").waitFor({ state: "visible", timeout });

@@ -63,12 +63,15 @@ kubeaquarium can reach. It never writes to the cluster unless you arm the submar
 
 ## Features
 
+Development reference: [demo builds, publication, and media maintenance](docs/demo-maintenance.md).
+
 ### The aquarium
 
-Namespaces are rim-lit bubbles sized by pod count, with stable centers during the session.
-Growing namespaces share available space; dense bubbles retain all pods in search and radar. Whale size
-scales with `cpu_requests + memory_requests` (log-mapped, ~5× visual range), so a 2-CPU worker is
-unmissable next to its sidecars. Status is color:
+Namespaces are rim-lit bubbles sized by both pod count and whale volume, with varied,
+deterministic spacing and room to navigate between them. Growing namespaces expand the
+layout when needed; ordinary updates preserve their positions. Whale size maps CPU and
+memory allocations separately onto a logarithmic scale, making large workloads stand
+out from small sidecars. These are configured resources, not live utilization. Status is color:
 
 | State | Visual |
 |---|---|
@@ -127,6 +130,8 @@ to look; use WASD to move and Space/Shift to rise or descend. The reticle stays 
 **Overview** or <kbd>O</kbd> frames the whole cluster. Escape closes the frontmost panel first.
 Typing in panels and losing window focus stop movement.
 
+**Vessel & camera** lets you choose Nautilus (classic hull), Manta (swept wings), or
+Atlas (twin pods). Your choice persists locally; all three share the same controls.
 Camera settings provide look sensitivity, vertical inversion and reduced motion. Reduced
 motion starts from your system preference and disables camera shake, inertia, status pulses
 and impact flashes. Sound is off by default; enable **Sound** to hear short interaction cues.

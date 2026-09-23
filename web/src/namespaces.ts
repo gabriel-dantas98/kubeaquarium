@@ -12,63 +12,63 @@ export interface NamespaceLayout {
 export interface NamespaceAllocation { center: THREE.Vector3; initialRadius: number; reservedRadius: number }
 export interface NamespaceLayoutState { allocations: Map<string, NamespaceAllocation> }
 
-const VERT_JITTER = 6;
-const MAX_BUBBLE_RADIUS = 42;
+const VERT_JITTER = 14;
+const CHANNEL_WIDTH = 14;
 
-/**
- * Phyllotaxis-style stable layout: each namespace gets a slot on a spiral
- * around the origin. Deterministic by name so the same cluster always
- * lays out the same way across reloads.
- */
-export function layoutNamespaces(names: string[], counts: Map<string, number>, state: NamespaceLayoutState): Map<string, NamespaceLayout> {
+/** CPU and memory have separate reference units; either can make a large whale. */
+export function resourceScale(cpuMillis: number, memMib: number): number {
+  const cpu = Number.isFinite(cpuMillis) ? Math.max(0, cpuMillis) / 250 : 0;
+  const memory = Number.isFinite(memMib) ? Math.max(0, memMib) / 256 : 0;
+  return THREE.MathUtils.clamp(0.55 + 0.85 * Math.log2(1 + Math.max(cpu, memory)), 0.55, 4.2);
+}
+
+/** Seeded organic islands; updates expand their existing bearings only when needed. */
+export function layoutNamespaces(names: string[], counts: Map<string, number>, state: NamespaceLayoutState,
+  volumes: Map<string, number> = new Map()): Map<string, NamespaceLayout> {
   const sorted = [...new Set(names)].sort((a, b) => a.localeCompare(b));
-  const out = new Map<string, NamespaceLayout>();
-  const current = new Map(sorted.map(name => [name, radiusForCount(counts.get(name) ?? 1)]));
+  const current = new Map(sorted.map(name => [name, radiusForCount(counts.get(name) ?? 0, volumes.get(name))]));
   for (const name of sorted) {
-    if (state.allocations.has(name)) continue;
-    const initialRadius = current.get(name)!;
-    const center = findCenter(name, initialRadius, state.allocations);
-    state.allocations.set(name, { center, initialRadius, reservedRadius: initialRadius });
+    const radius = current.get(name)!;
+    const existing = state.allocations.get(name);
+    if (existing) existing.reservedRadius = Math.max(existing.reservedRadius, radius);
+    else state.allocations.set(name, { center: findCenter(name, radius, state.allocations), initialRadius: radius, reservedRadius: radius });
   }
-  // Capacity is derived from one immutable reservation snapshot.
-  const reservations = [...state.allocations.entries()].map(([name, a]) => [name, { ...a, center: a.center.clone() }] as const);
-  for (const name of sorted) {
-    const allocation = state.allocations.get(name)!;
-    let capacityRadius = MAX_BUBBLE_RADIUS;
-    for (const [otherName, other] of reservations) {
-      if (otherName === name) continue;
-      const distance = Math.hypot(allocation.center.x - other.center.x, allocation.center.z - other.center.z);
-      const slack = distance - allocation.reservedRadius - other.reservedRadius - 4;
-      capacityRadius = Math.min(capacityRadius, allocation.reservedRadius + Math.max(0, slack) / 2);
-    }
-    const wanted = current.get(name)!;
-    const radius = Math.min(wanted, capacityRadius);
-    allocation.reservedRadius = Math.max(allocation.reservedRadius, radius);
-    out.set(name, { name, center: allocation.center.clone(), radius, capacityRadius, dense: wanted > capacityRadius, podCount: counts.get(name) ?? 0 });
+  const reservations = [...state.allocations.values()];
+  let expansion = 1;
+  for (let i = 0; i < reservations.length; i++) for (let j = i + 1; j < reservations.length; j++) {
+    const a = reservations[i], b = reservations[j];
+    const distance = Math.hypot(a.center.x - b.center.x, a.center.z - b.center.z);
+    expansion = Math.max(expansion, (a.reservedRadius + b.reservedRadius + CHANNEL_WIDTH) / distance);
   }
-  return out;
+  if (expansion > 1) for (const a of reservations) { a.center.x *= expansion; a.center.z *= expansion; }
+  return new Map(sorted.map(name => {
+    const a = state.allocations.get(name)!;
+    return [name, { name, center: a.center.clone(), radius: current.get(name)!, capacityRadius: a.reservedRadius,
+      dense: false, podCount: counts.get(name) ?? 0 }];
+  }));
 }
 
 function findCenter(name: string, radius: number, allocations: Map<string, NamespaceAllocation>): THREE.Vector3 {
-  const y = (hash(name) % 1000) / 1000 * VERT_JITTER - VERT_JITTER / 2;
+  const seed = hash(name);
+  const y = (seed % 1000) / 1000 * VERT_JITTER - VERT_JITTER / 2;
   if (allocations.size === 0) return new THREE.Vector3(0, y, 0);
-  for (let ring = 2; ; ring += 2) {
-    const samples = Math.ceil(2 * Math.PI * ring / 2);
+  const bearing = seed / 0xffffffff * Math.PI * 2;
+  const gap = CHANNEL_WIDTH + ((seed >>> 12) % 1200) / 100;
+  for (let ring = radius + gap; ; ring += 4) {
+    const samples = Math.ceil(2 * Math.PI * ring / 8);
     for (let i = 0; i < samples; i++) {
-      const angle = i * Math.PI * 2 / samples;
+      const angle = bearing + i * 2.399963229728653;
       const x = Math.cos(angle) * ring, z = Math.sin(angle) * ring;
-      const valid = [...allocations.values()].every(other => {
-        const distance = Math.hypot(x - other.center.x, z - other.center.z);
-        return distance >= Math.max(radius + other.initialRadius + 16, radius + other.reservedRadius + 10);
-      });
-      if (valid) return new THREE.Vector3(x, y, z);
+      if ([...allocations.values()].every(other => Math.hypot(x - other.center.x, z - other.center.z)
+        >= radius + other.reservedRadius + gap)) return new THREE.Vector3(x, y, z);
     }
   }
 }
 
-export function radiusForCount(podCount: number): number {
-  const size = Math.max(1, podCount);
-  return THREE.MathUtils.clamp(4 + Math.cbrt(size) * 2.65, 5, MAX_BUBBLE_RADIUS);
+/** Cubic resource volume preserves swimming room as pod counts or sizes grow. */
+export function radiusForCount(podCount: number, resourceVolume?: number): number {
+  const volume = resourceVolume ?? Math.max(1, podCount) * 1.4 ** 3;
+  return 7 + 3.8 * Math.cbrt(Math.max(1, volume));
 }
 
 function hash(s: string): number {
@@ -125,24 +125,26 @@ export function buildBubble(layout: NamespaceLayout): THREE.Group {
   return group;
 }
 
-/**
- * Deterministic position inside a bubble for a given pod uid.
- * Spreads pods using golden-angle on a spherical shell scaled by bubble radius.
- */
+/** Rotated, seeded cells preserve swimming room without visible axis-aligned rows. */
 export function placeInBubble(layout: NamespaceLayout, uid: string, indexHint: number): THREE.Vector3 {
-  const seed = (hash(uid) + indexHint) >>> 0;
-  // Convert seed to two angles
-  const phi = (seed % 10000) / 10000 * Math.PI * 2;
-  // Unsigned shift: seeds >= 2^31 with `>>` go negative, pushing cosTheta
-  // outside [-1,1] and turning sinTheta into NaN (invisible whales).
-  const cosTheta = ((seed >>> 13) % 10000) / 10000 * 2 - 1;
-  const sinTheta = Math.sqrt(1 - cosTheta * cosTheta);
-  // Random radius factor ∈ [0.35, 0.85]
-  const rf = 0.35 + ((seed >>> 7) % 1000) / 1000 * 0.5;
-  const r = layout.radius * rf;
-  return new THREE.Vector3(
-    layout.center.x + r * sinTheta * Math.cos(phi),
-    layout.center.y + r * cosTheta,
-    layout.center.z + r * sinTheta * Math.sin(phi),
+  const side = Math.max(1, Math.ceil(Math.cbrt(layout.podCount)));
+  const index = indexHint % (side ** 3);
+  // Avalanche neighboring UIDs so similar names do not share visible offsets.
+  let seed = hash(uid);
+  seed = Math.imul(seed ^ (seed >>> 16), 0x7feb352d);
+  seed = Math.imul(seed ^ (seed >>> 15), 0x846ca68b);
+  seed = (seed ^ (seed >>> 16)) >>> 0;
+  const orientation = hash(layout.name);
+  const rotation = new THREE.Euler(
+    .4 + (orientation & 255) / 255 * 1.1,
+    ((orientation >>> 8) & 255) / 255 * Math.PI * 2,
+    .3 + ((orientation >>> 16) & 255) / 255 * 1.2,
   );
+  const cell = layout.radius * 1.05 / side;
+  const jitter = (shift: number) => (((seed >>> shift) & 255) / 255 - 0.5) * 0.4;
+  return new THREE.Vector3(
+    (index % side - (side - 1) / 2 + jitter(0)) * cell,
+    (Math.floor(index / side) % side - (side - 1) / 2 + jitter(8)) * cell,
+    (Math.floor(index / (side * side)) - (side - 1) / 2 + jitter(16)) * cell,
+  ).applyEuler(rotation).add(layout.center);
 }

@@ -2,10 +2,10 @@ import * as THREE from 'three';
 import Stats from 'stats.js';
 import type { PodView } from './types';
 import { buildWhaleGeometry, buildWhaleMaterial } from './whale';
-import { layoutNamespaces, buildBubble, placeInBubble, type NamespaceLayout, type NamespaceLayoutState } from './namespaces';
+import { layoutNamespaces, buildBubble, placeInBubble, resourceScale, type NamespaceLayout, type NamespaceLayoutState } from './namespaces';
 import { FrameMetrics } from './frame-metrics';
 import { HybridCamera, type CameraPreferences } from './camera';
-import { buildSubmarineCockpit } from './submarine';
+import { buildSubmarineCockpit, setSubmarineModel, type SubmarineModelId } from './submarine';
 import type { Filter } from './hud/search';
 import { ALL } from './hud/search';
 import type { LabelTarget, NamespaceLabelTarget } from './hud/labels';
@@ -167,7 +167,7 @@ export class AquariumScene {
     this.scene.add(this.bubbleRoot);
 
     const env = new THREE.Mesh(
-      new THREE.SphereGeometry(220, 32, 24),
+      new THREE.SphereGeometry(5000, 32, 24),
       new THREE.ShaderMaterial({
         side: THREE.BackSide,
         depthWrite: false,
@@ -176,6 +176,14 @@ export class AquariumScene {
         fragmentShader: `varying vec3 vWorld; void main(){ float t = clamp((vWorld.y + 100.0) / 220.0, 0.0, 1.0); vec3 top = vec3(0.05,0.18,0.32); vec3 bot = vec3(0.012,0.04,0.10); gl_FragColor = vec4(mix(bot, top, t), 1.0); }`,
       }),
     );
+    env.frustumCulled = false;
+    env.material.depthTest = false;
+    env.renderOrder = -1;
+    env.onBeforeRender = () => {
+      env.position.copy(this.camera.position);
+      env.scale.setScalar(this.camera.far / 10000);
+      env.updateMatrixWorld();
+    };
     this.scene.add(env);
     this.scene.add(new THREE.AmbientLight(0xffffff, 0.2));
 
@@ -274,6 +282,8 @@ export class AquariumScene {
     return this.hybrid.mode === 'dive';
   }
 
+  setSubmarineModel(id: SubmarineModelId) { setSubmarineModel(this.submarine, id); }
+
   setInputBlocked(blocked: boolean) { this.hybrid.setInputBlocked(blocked); }
   setPreferences(value: CameraPreferences) {
     this.hybrid.setPreferences(value);
@@ -289,7 +299,7 @@ export class AquariumScene {
   }
   exitDive() { if (this.isDiving) this.hybrid.exitDive(); }
   getNavigationDebug() {
-    return { mode: this.hybrid.mode, position: this.camera.position.toArray(),
+    return { mode: this.hybrid.mode, model: this.submarine.userData.model, position: this.camera.position.toArray(),
       direction: this.hybrid.direction.toArray(), blocked: this.hybrid.isInputBlocked };
   }
   getFrameMetrics() { return { ...this.frameMetrics.snapshot(), pixelRatio: this.pixelRatio,
@@ -339,6 +349,7 @@ export class AquariumScene {
 
   getSubmarineDebug() {
     return {
+      model: this.submarine.userData.model,
       visible: this.submarine.visible,
       position: {
         x: Number(this.submarine.position.x.toFixed(3)),
@@ -387,10 +398,12 @@ export class AquariumScene {
     }
   }
 
-  rebuildNamespaceBubbles(podsByNs: Map<string, number>) {
+  rebuildNamespaceBubbles(podsByNs: Map<string, number>, pods: Iterable<PodView>) {
+    const volumes = new Map<string, number>();
+    for (const pod of pods) volumes.set(pod.namespace, (volumes.get(pod.namespace) ?? 0) + this.scaleFor(pod) ** 3);
     const names = [...podsByNs.keys()];
     const previousLayouts = this.layouts;
-    const layouts = layoutNamespaces(names, podsByNs, this.layoutState);
+    const layouts = layoutNamespaces(names, podsByNs, this.layoutState, volumes);
     this.layouts = layouts;
 
     for (const [name, group] of this.bubbles) {
@@ -432,7 +445,7 @@ export class AquariumScene {
       const idx = this.allocIndex();
       if (idx < 0) return;
       const seed = hash(p.uid);
-      const initialPos = placeInBubble(layout, p.uid, indexHint);
+      const initialPos = placeInBubble(layout, p.uid, this.bubbleMembers.get(p.namespace)?.size ?? indexHint);
       const baseScale = this.scaleFor(p);
       slot = {
         index: idx, uid: p.uid, name: p.name,
@@ -624,12 +637,7 @@ export class AquariumScene {
   }
 
   private scaleFor(p: PodView): number {
-    // Exaggerated log curve so resource differences read at a glance:
-    // 10m/8Mi ≈ 0.6, 100m/128Mi ≈ 1.5, 500m/1Gi ≈ 2.5, 2c/4Gi ≈ 3.3.
-    const total = Math.max(1, p.cpuMillis + p.memMib);
-    const v = Math.max(0.1, Math.log10(total + 10) - 1);
-    const s = Math.pow(v, 1.35);
-    return THREE.MathUtils.clamp(0.35 + s * 0.75, 0.5, 3.6);
+    return resourceScale(p.cpuMillis, p.memMib);
   }
 
   private colorFor(p: PodView): THREE.Color {
@@ -1225,7 +1233,7 @@ export class AquariumScene {
     const MAX_SPEED = 1.6;       // world units / sec
     const MIN_SPEED = 0.45;
     const SEPARATION = 1.9;
-    const COHESION = 0.06;
+    const COHESION = 0.018;
     const ALIGNMENT = 0.18;
     const WANDER = 0.5;
     const CONTAINMENT = 2.4;
@@ -1242,7 +1250,7 @@ export class AquariumScene {
 
       const radius = layout.radius;
       const center = layout.center;
-      const cell = Math.max(1.4, radius / 5);
+      const cell = Math.max(4, radius / 5, ...[...members].map(uid => (this.slots.get(uid)?.collisionRadius ?? 0) * 4));
       const grid = useBoids ? new Map<number, InstanceSlot[]>() : undefined;
       const slots: InstanceSlot[] = [];
       for (const uid of members) {
@@ -1273,7 +1281,7 @@ export class AquariumScene {
         // 2. Containment: keep inside the bubble. Soft inward force when near edge.
         tmpA.copy(s.pos).sub(center);
         const distFromCenter = tmpA.length();
-        const innerLimit = radius - Math.max(0.4, s.baseScale * 0.6);
+        const innerLimit = Math.max(1, radius - s.baseScale * 2.0);
         if (distFromCenter > innerLimit) {
           const over = (distFromCenter - innerLimit);
           tmpA.normalize().multiplyScalar(-CONTAINMENT * (1 + over));
@@ -1298,7 +1306,7 @@ export class AquariumScene {
               if (o === s) continue;
               tmpB.copy(s.pos).sub(o.pos);
               const distSq = tmpB.lengthSq();
-              const minDist = (s.collisionRadius + o.collisionRadius) * 1.6;
+              const minDist = (s.collisionRadius + o.collisionRadius) * 2.0;
               if (distSq < minDist * minDist && distSq > 0.0001) {
                 // Separation: push away, stronger when closer
                 const inv = 1 / Math.sqrt(distSq);
@@ -1360,7 +1368,7 @@ export class AquariumScene {
         // Hard clamp: never escape the bubble
         tmpA.copy(s.pos).sub(center);
         const d2 = tmpA.length();
-        const hardLimit = radius - 0.05;
+        const hardLimit = Math.max(1, radius - s.baseScale * 1.8);
         if (d2 > hardLimit) {
           tmpA.multiplyScalar(hardLimit / d2);
           s.pos.copy(center).add(tmpA);

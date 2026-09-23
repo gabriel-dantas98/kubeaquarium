@@ -31,23 +31,23 @@ try {
     for(const aspect of [16/9,9/16]){camera.aspect=aspect;hybrid.frameBounds(bounds);camera.updateMatrixWorld();for(const l of many.values())for(const x of [-1,1])for(const y of [-1,1])for(const z of [-1,1]){const p=l.center.clone().add(new THREE.Vector3(x,y,z).multiplyScalar(l.radius)).project(camera);check(Math.abs(p.x)<=1&&Math.abs(p.y)<=1&&p.z<1,'overview clips bounds');}}
     const scene=new AquariumScene(canvas);
     scene.setPreferences({lookSensitivity:1,invertY:false,reducedMotion:true});
-    scene.rebuildNamespaceBubbles(new Map([['test',4]]));
+    scene.rebuildNamespaceBubbles(new Map([['test',4]]), []);
     const base={namespace:'test',node:'node',ready:true,restartCount:0,reason:'',cpuMillis:100,memMib:128,createdAt:'2026-09-22T00:00:00Z',controller:null,deletionTimestamp:''};
     for(const [i,phase] of ['Running','Pending','Failed','Succeeded'].entries())scene.upsertPod({...base,uid:String(i),name:String(i),phase},new Map());
     const completed=scene.slots.get('3');const completedPos=completed.pos.clone();scene.simulate(.05);check(completed.pos.equals(completedPos),'completed pod moves');
     const states=[...scene.slots.values()].map(slot=>scene.mesh.geometry.getAttribute('instanceState').getX(slot.index));
     check(states.join() === '0,1,2,3',`incorrect instance states ${states}`);
     const returning={...base,uid:'returning',name:'returning',namespace:'returning',phase:'Running'};
-    scene.rebuildNamespaceBubbles(new Map([['returning',1]]));
+    scene.rebuildNamespaceBubbles(new Map([['returning',1]]), []);
     scene.upsertPod(returning,new Map());
     scene.reconcilePods(new Set());
-    scene.rebuildNamespaceBubbles(new Map());
-    scene.rebuildNamespaceBubbles(new Map([['returning',1]]));
+    scene.rebuildNamespaceBubbles(new Map(), []);
+    scene.rebuildNamespaceBubbles(new Map([['returning',1]]), []);
     scene.upsertPod(returning,new Map());
     check(scene.bubbleMembers.get('returning')?.has('returning'),'returning pod remains a bubble member during its removal animation');
     scene.showOverview();scene.camera.updateMatrixWorld();scene.computeNamespaceLabelTargets();
     check(scene.getNamespaceLabelTargets().find(target=>target.namespace==='returning')?.total===1,'returning pod is counted by the namespace summary');
-    scene.rebuildNamespaceBubbles(new Map([['test',4],['returning',1]]));
+    scene.rebuildNamespaceBubbles(new Map([['test',4],['returning',1]]), []);
     for (const [i,phase] of ['Running','Pending','Failed','Succeeded'].entries()) scene.upsertPod({...base,uid:String(i),name:String(i),phase},new Map());
     scene.camera.position.set(500, 20, 500);
     const distantPose = scene.camera.position.clone();

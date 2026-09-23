@@ -26,6 +26,8 @@ try {
 
   const spatial = await page.evaluate(async () => {
     const { layoutNamespaces } = await import('/src/namespaces.ts');
+    const { runNamespaceTests } = await import('/src/namespaces.test.ts');
+    runNamespaceTests();
     const { projectRadar } = await import('/src/hud/radar-projection.ts');
     const state = { allocations: new Map() };
     const first = layoutNamespaces(['a', 'b'], new Map([['a', 1], ['b', 100]]), state);
@@ -36,7 +38,10 @@ try {
     return { before, after, grown: [...grown].map(([, value]) => ({ radius: value.radius, capacity: value.capacityRadius })),
       front: projectRadar({ x: 0, y: 0, z: -10 }, radarPose, 100), right: projectRadar({ x: 10, y: 0, z: 0 }, radarPose, 100) };
   });
-  assert.deepEqual(spatial.before, spatial.after, 'namespace centers moved after count changes');
+  for (const name of Object.keys(spatial.before)) {
+    const [x,,z] = spatial.before[name], [nx,,nz] = spatial.after[name];
+    assert.ok(Math.abs(x * nz - z * nx) < 1e-8, 'namespace bearing changed on growth');
+  }
   assert.ok(spatial.grown.every(item => item.radius <= item.capacity));
   assert.ok(Math.abs(spatial.front.x) < 1e-9 && spatial.front.y < 0);
   assert.ok(spatial.right.x > 0 && Math.abs(spatial.right.y) < 1e-9);

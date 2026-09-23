@@ -12,6 +12,7 @@ import { RecoveryPanel } from './recovery-panel';
 import { LivePodOperations, ApiDeleteError, type PodOperations } from './operations';
 import { DemoMission } from './demo-mission';
 import type { CameraPreferences } from './camera';
+import { mountVehicleSelector } from './hud/vehicle';
 
 
 const audio = new AquariumAudio();
@@ -159,7 +160,7 @@ function selectRadarItem(item: RadarItem) {
 
 function isEditing(target: EventTarget | null): boolean {
   const el = target as HTMLElement | null;
-  return !!el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable);
+  return !!el && (el.tagName === 'INPUT' || el.tagName === 'SELECT' || el.tagName === 'TEXTAREA' || el.isContentEditable);
 }
 
 
@@ -231,6 +232,7 @@ detail.hide = () => {
 
 const preferencesPanel = document.getElementById('camera-settings') as HTMLDetailsElement;
 const settingsPanel = preferencesPanel.querySelector('.settings-panel') as HTMLElement;
+mountVehicleSelector(settingsPanel, model => scene.setSubmarineModel(model));
 function visibleRect(element: HTMLElement, visible: boolean): DOMRectReadOnly | undefined {
   if (!visible) return undefined;
   const rect = element.getBoundingClientRect();
@@ -404,13 +406,15 @@ function flushPendingEvents() {
       decrementNamespace(previous.namespace);
       incrementNamespace(ev.pod.namespace);
       namespaceLayoutDirty = true;
+    } else if (previous.cpuMillis !== ev.pod.cpuMillis || previous.memMib !== ev.pod.memMib) {
+      namespaceLayoutDirty = true;
     }
     changedPods.add(ev.pod.uid);
     if (detail.isOpenFor(ev.pod.uid)) detail.show(ev.pod);
   }
 
   if (namespaceLayoutDirty) {
-    scene.rebuildNamespaceBubbles(namespaceCounts);
+    scene.rebuildNamespaceBubbles(namespaceCounts, store.pods.values());
   }
 
   const ns2idx = new Map<string, number>();

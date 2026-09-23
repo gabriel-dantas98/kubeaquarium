@@ -21,9 +21,9 @@ pnpm still
 pnpm preview
 ```
 
-Capture writes `public/kubeaquarium-footage.webm` and `public/kubeaquarium-beats.json`. The Remotion composition reads the captured beats and uses a 2.5-second opening, trims the loading frames, and ends three seconds after the final beat at 30 FPS. Rendering creates `../docs/video/kubeaquarium-demo.mp4`; the still creates `../docs/video/kubeaquarium-demo-poster.png`.
+Capture writes `public/kubeaquarium-footage.webm` and `public/kubeaquarium-beats.json`. The Remotion composition reads the captured beats and uses a 3.5-second opening, trims the loading frames, and ends three seconds after the final beat at 30 FPS. Rendering creates `../docs/video/kubeaquarium-demo.mp4`; the still creates `../docs/video/kubeaquarium-demo-poster.png` one second after the captured `ready` beat. The poster script derives its frame from the capture timestamps, so a changed playthrough duration does not leave the poster on the wrong chapter.
 
-The final video is 1440×940, framing the 1280×720 recording with a header and a separate caption/chapter strip. The opening, namespace filter, radar, pod inspection, submarine and observed recovery are driven by actual captured beats. Review the poster and frames from radar, inspection and Ready before publishing.
+The final video is 1440×940, framing the 1280×720 recording with a header and a separate caption/chapter strip. The opening, namespace filter, radar, vehicle selection, pod inspection, submarine and observed recovery are driven by actual captured beats. Review the poster and frames from radar, inspection and Ready before publishing.
 
 `pnpm preview` creates `../docs/video/kubeaquarium-demo-preview.gif`, a 720-pixel-wide, 8 FPS montage for the README. It links to the full MP4. The video is intentionally silent so the demo is understandable without audio. FFmpeg is required for MP4 optimization and the preview.
 
@@ -35,3 +35,9 @@ The benchmark uses a separate, clean checkout for the baseline. Set `BENCH_BASEL
 BENCH_TARGET=baseline BENCH_BASELINE_ROOT='/absolute/path/to/baseline/web' node scripts/benchmark-visual.mjs
 BENCH_TARGET=final node scripts/benchmark-visual.mjs
 ```
+
+## Launch art direction
+
+The film uses a nautical chart, a custom vector whale, warm paper lettering, sea-glass green and a signal-orange accent. Barlow Condensed supplies the large launch headlines; Barlow supplies the reading text. Both fonts are bundled locally under `public/fonts/` with their SIL Open Font Licenses. Render waits for both fonts, so no network font requests or platform font substitutions are needed.
+
+The 3.5-second opening and final three-second launch card surround the unaltered captured gameplay. Captions follow observed beats; request acceptance is never presented as recovery. The `fleet` beat showcases vehicle selection. `timing.json` is the shared source for the opening duration and composition frame rate; the composition, poster and GIF scripts read it directly.

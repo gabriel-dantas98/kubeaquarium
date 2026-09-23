@@ -1,5 +1,4 @@
 import * as THREE from 'three';
-import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 
 // Docker-blue palette shared with the rest of the aquarium.
 const HULL_BLUE = 0x1d63ed;
@@ -8,35 +7,61 @@ const ACCENT_LIGHT = 0x5b9bff;
 const TRIM_DARK = 0x0b1f3f;
 const GLOW_CYAN = 0x8fe8ff;
 
-export function buildSubmarineCockpit(): THREE.Group {
+export const SUBMARINE_MODELS = [
+  { id: 'nautilus', name: 'Nautilus', description: 'Classic exploration hull', color: '#5b9bff' },
+  { id: 'manta', name: 'Manta', description: 'Swept wings · cyan canopy', color: '#63edcf' },
+  { id: 'atlas', name: 'Atlas', description: 'Twin pods · industrial frame', color: '#ffbc69' },
+] as const;
+export type SubmarineModelId = typeof SUBMARINE_MODELS[number]['id'];
+export function isSubmarineModel(value: unknown): value is SubmarineModelId {
+  return SUBMARINE_MODELS.some(model => model.id === value);
+}
+
+export function buildSubmarineCockpit(model: SubmarineModelId = 'nautilus'): THREE.Group {
   const root = new THREE.Group();
   root.name = 'submarine-cockpit';
   root.position.set(0, -0.94, -2.7);
   root.scale.setScalar(0.62);
-  root.add(buildFallbackSubmarine());
-
-  const assetUrl = `${import.meta.env.BASE_URL}models/missile-submarine.glb`;
-  new GLTFLoader().load(assetUrl, (gltf) => {
-    root.clear();
-    const model = normalizeModel(gltf.scene, 2.35);
-    model.name = 'missile-submarine-model';
-    // The GLB's hull runs along Z with the bow at -Z and the tail rudder at
-    // +Z, which already matches the camera's forward axis (-Z). Keep it level.
-    model.rotation.set(0, 0, 0);
-    model.position.set(0, -0.02, -0.05);
-    tintModel(model);
-    root.add(model);
-  }, undefined, (err) => {
-    console.warn('[kubeaquarium] failed to load submarine model', err);
-  });
-
+  setSubmarineModel(root, model);
   return root;
 }
 
+/** Replace only the hull; camera pose, recoil and navigation remain intact. */
+export function setSubmarineModel(root: THREE.Group, model: SubmarineModelId): void {
+  if (root.userData.model === model) return;
+  const geometry = new Set<THREE.BufferGeometry>();
+  const materials = new Set<THREE.Material>();
+  root.traverse(object => {
+    if (!(object instanceof THREE.Mesh)) return;
+    geometry.add(object.geometry);
+    for (const material of Array.isArray(object.material) ? object.material : [object.material]) materials.add(material);
+  });
+  root.clear();
+  geometry.forEach(item => item.dispose());
+  materials.forEach(item => item.dispose());
+  const hull = model === 'manta' ? buildManta() : model === 'atlas' ? buildAtlas() : buildNautilus();
+  hull.name = model;
+  // A short-range deck light travels with the vessel so its silhouette remains
+  // readable when the player turns away from the aquarium's world lighting.
+  const deckLight = new THREE.PointLight(0xc9e8ff, 5, 5, 2);
+  deckLight.position.set(-1.2, 2.5, 1.5);
+  hull.add(deckLight);
+  hull.traverse(object => {
+    if (!(object instanceof THREE.Mesh)) return;
+    const material = object.material as THREE.MeshStandardMaterial;
+    if (material instanceof THREE.MeshStandardMaterial && material.emissive.getHex() === 0) {
+      material.emissive.copy(material.color);
+      material.emissiveIntensity = .18;
+    }
+  });
+  root.add(hull);
+  root.userData.model = model;
+}
+
 // Low-poly navy submarine, nose pointing -Z (camera forward), level.
-function buildFallbackSubmarine(): THREE.Group {
+function buildNautilus(): THREE.Group {
   const root = new THREE.Group();
-  root.name = 'fallback-submarine';
+  root.name = 'nautilus';
 
   const hullMat = new THREE.MeshStandardMaterial({
     color: HULL_DEEP,
@@ -138,41 +163,52 @@ function buildFallbackSubmarine(): THREE.Group {
   return root;
 }
 
-function normalizeModel(model: THREE.Object3D, targetSize: number): THREE.Group {
-  const box = new THREE.Box3().setFromObject(model);
-  const center = box.getCenter(new THREE.Vector3());
-  const size = box.getSize(new THREE.Vector3());
-  const maxAxis = Math.max(size.x, size.y, size.z) || 1;
-  model.position.sub(center);
-
-  const holder = new THREE.Group();
-  holder.scale.setScalar(targetSize / maxAxis);
-  holder.add(model);
-  return holder;
+function surface(color: number, emissive = 0): THREE.MeshStandardMaterial {
+  return new THREE.MeshStandardMaterial({color, roughness: .38, metalness: .4, emissive, emissiveIntensity: emissive ? 1.5 : 0});
 }
 
-// Shift the GLB's flat dark-teal material toward the aquarium's Docker-blue
-// palette so the sub matches the whales and reads well against the dark scene.
-function tintModel(root: THREE.Object3D) {
-  root.traverse((obj) => {
-    const mesh = obj as THREE.Mesh;
-    if (!mesh.isMesh) return;
-    mesh.castShadow = false;
-    mesh.receiveShadow = false;
-    if (!mesh.material) {
-      mesh.material = new THREE.MeshStandardMaterial({ color: HULL_BLUE, roughness: 0.5, metalness: 0.2 });
-      return;
+function part(root: THREE.Group, geometry: THREE.BufferGeometry, material: THREE.Material,
+  position: [number, number, number], scale: [number, number, number] = [1, 1, 1]): THREE.Mesh {
+  const mesh = new THREE.Mesh(geometry, material);
+  mesh.position.set(...position); mesh.scale.set(...scale); root.add(mesh); return mesh;
+}
+
+function buildManta(): THREE.Group {
+  const root = new THREE.Group();
+  const hull = surface(0x167c79), edge = surface(0x63edcf), dark = surface(0x102f40);
+  const glow = surface(0xaffff4, 0x35bfaa);
+  part(root, new THREE.SphereGeometry(.4, 24, 16), hull, [0, 0, -.18], [1, .56, 2.5]);
+  part(root, new THREE.SphereGeometry(.25, 20, 12), glow, [0, .18, -.48], [.82, .5, 1.5]);
+  const outline = new THREE.Shape();
+  outline.moveTo(-.24, -.7); outline.lineTo(-1.12, .6); outline.lineTo(-.3, .4);
+  outline.lineTo(0, .72); outline.lineTo(.3, .4); outline.lineTo(1.12, .6); outline.lineTo(.24, -.7); outline.closePath();
+  const wing = part(root, new THREE.ExtrudeGeometry(outline, {depth: .065, bevelEnabled: true, bevelSize: .025, bevelThickness: .025, bevelSegments: 1}), hull, [0, 0, 0]);
+  wing.rotation.x = Math.PI / 2;
+  for (const side of [-1, 1]) {
+    const engine = part(root, new THREE.CapsuleGeometry(.115, .65, 6, 12), dark, [side * .6, -.01, .3]);
+    engine.rotation.x = Math.PI / 2;
+    part(root, new THREE.TorusGeometry(.083, .025, 8, 16), glow, [side * .6, -.01, .76]);
+    part(root, new THREE.BoxGeometry(.05, .035, .62), edge, [side * .34, .12, .02]);
+  }
+  return root;
+}
+
+function buildAtlas(): THREE.Group {
+  const root = new THREE.Group();
+  const hull = surface(0xdf7d28), trim = surface(0x243447), accent = surface(0xffd18c);
+  const glow = surface(0xb8edff, 0x45b4ec);
+  part(root, new THREE.BoxGeometry(.64, .36, .95), trim, [0, .02, 0]);
+  part(root, new THREE.SphereGeometry(.28, 16, 12), glow, [0, .2, -.22], [1, .8, 1.35]);
+  part(root, new THREE.BoxGeometry(1.42, .09, .18), accent, [0, .12, .45]);
+  for (const side of [-1, 1]) {
+    const pod = part(root, new THREE.CapsuleGeometry(.25, 1.38, 8, 16), hull, [side * .53, -.05, 0]);
+    pod.rotation.x = Math.PI / 2;
+    for (const z of [-.48, .43]) {
+      part(root, new THREE.TorusGeometry(.253, .034, 8, 16), trim, [side * .53, -.05, z]);
     }
-    const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
-    for (const mat of materials) {
-      const standard = mat as THREE.MeshStandardMaterial;
-      if ('color' in standard) standard.color.lerp(new THREE.Color(HULL_BLUE), 0.55);
-      if ('roughness' in standard) standard.roughness = Math.max(0.45, standard.roughness ?? 0.5);
-      if ('metalness' in standard) standard.metalness = Math.min(0.28, Math.max(0.15, standard.metalness ?? 0.15));
-      if ('emissive' in standard && standard.emissive) {
-        standard.emissive.set(0x0a2a5c);
-        standard.emissiveIntensity = 0.35;
-      }
-    }
-  });
+    part(root, new THREE.SphereGeometry(.12, 12, 8), glow, [side * .53, -.05, -.94], [1, 1, .3]);
+    part(root, new THREE.TorusGeometry(.16, .05, 8, 16), accent, [side * .53, -.05, .95]);
+    part(root, new THREE.BoxGeometry(.055, .44, .27), accent, [side * .53, .17, .65]);
+  }
+  return root;
 }

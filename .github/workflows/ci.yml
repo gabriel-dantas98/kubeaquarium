@@ -26,7 +26,12 @@ jobs:
         working-directory: web
         run: |
           npm ci
+          npx tsc --noEmit
           npm run build
+          npm run build:demo
+
+      - name: test
+        run: go test ./...
 
       - name: vet
         run: go vet ./...
