@@ -64,6 +64,7 @@ kubeaquarium can reach. It never writes to the cluster unless you arm the submar
 ## Features
 
 Development reference: [demo builds, publication, and media maintenance](docs/demo-maintenance.md).
+The public demo includes a branded social preview when sharing its link.
 
 ### The aquarium
 

@@ -12,6 +12,10 @@ Before delivering a change, inspect its diff and the media referenced by README.
 
 ## Decide what changed
 
+- Branding or sharing copy: review `web/public/social/kubeaquarium.png` and the
+  Open Graph/Twitter tags in `web/index.html`; regenerate the social card using
+  `video/scripts/make-social-preview.mjs` when needed.
+
 - Scene geometry, whale resource sizing, namespace placement, density, lighting, vehicle models, camera, HUD, radar, or responsive layout: review screenshots and every video chapter showing the affected feature.
 - Demo mission, recovery states, controls, or visible wording: review the illustrated workflow, captions, and capture assertions together.
 - Video typography or composition: rerender the video, poster, and GIF; recapture gameplay only if the source footage is outdated.

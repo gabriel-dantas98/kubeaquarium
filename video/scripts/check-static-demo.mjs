@@ -18,6 +18,17 @@ page.on('websocket', socket => sockets.push(socket.url()));
 try {
   const response = await page.goto(target.href, { waitUntil: 'networkidle' });
   assert.equal(response?.status(), 200, 'Static demo must load successfully');
+  const html = await response.text();
+  for (const field of ['og:title', 'og:description', 'og:type', 'og:url', 'og:image', 'twitter:card']) {
+    assert.ok(html.includes(`"${field}"`), `${field} must exist in server HTML without JavaScript`);
+  }
+  const imagePath = new URL('social/kubeaquarium.png', target);
+  const image = await page.request.get(imagePath.href);
+  assert.equal(image.status(), 200, 'Social card must exist at the deployed base path');
+  assert.ok(image.headers()['content-type']?.startsWith('image/png'));
+  const png = await image.body();
+  assert.equal(png.readUInt32BE(16), 1200);
+  assert.equal(png.readUInt32BE(20), 630);
   await page.waitForFunction(() => window.__kubeaquarium?.pods > 0);
   assert.equal(new URL(page.url()).search, '', 'Demo must work without ?demo');
   const pods = await page.evaluate(() => window.__kubeaquarium.pods);
