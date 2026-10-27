@@ -14,12 +14,12 @@ import { DemoMission } from './demo-mission';
 import type { CameraPreferences } from './camera';
 import { mountVehicleSelector } from './hud/vehicle';
 
-// The hosted demo build (GitHub Pages) also publishes the landing page under <base>/home/.
+// The hosted demo build (GitHub Pages) lives at /kubeaquarium/demo/; the landing page is one level up.
 if (import.meta.env.VITE_KUBEAQUARIUM_DEMO === '1') {
   const brand = document.querySelector<HTMLElement>('.brand');
   if (brand) {
     const link = document.createElement('a');
-    link.href = `${import.meta.env.BASE_URL}home/`;
+    link.href = `${import.meta.env.BASE_URL}../`;
     link.textContent = brand.textContent;
     link.title = 'About kubeaquarium';
     brand.replaceChildren(link);
