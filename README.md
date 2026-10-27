@@ -7,7 +7,7 @@
 Every pod is a Docker whale. Namespaces are floating bubbles. Broken pods turn red and jitter.
 And when you really need to delete one — there's a submarine.
 
-[![Demo](https://img.shields.io/badge/demo-live-2496ED?logo=googlechrome&logoColor=white)](https://gabriel-dantas98.github.io/kubeaquarium/)
+[![Demo](https://img.shields.io/badge/demo-live-2496ED?logo=googlechrome&logoColor=white)](https://gabriel-dantas98.github.io/kubeaquarium/demo/)
 [![Release](https://img.shields.io/github/v/release/gabriel-dantas98/kubeaquarium)](https://github.com/gabriel-dantas98/kubeaquarium/releases)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![Go](https://img.shields.io/badge/Go-informers-00ADD8?logo=go&logoColor=white)](internal/k8s)
@@ -19,9 +19,9 @@ And when you really need to delete one — there's a submarine.
 
 *Recorded in the simulated demo. No Kubernetes access or real cluster changes.*
 
-**[▶ Try the live demo](https://gabriel-dantas98.github.io/kubeaquarium/)** — runs entirely in your browser with synthetic cluster data, no Kubernetes required.
+**[▶ Try the live demo](https://gabriel-dantas98.github.io/kubeaquarium/demo/)** — runs entirely in your browser with synthetic cluster data, no Kubernetes required.
 
-**[Project home](https://gabriel-dantas98.github.io/kubeaquarium/home/)** — overview, features, hotkeys and install steps on one page.
+**[Project home](https://gabriel-dantas98.github.io/kubeaquarium/)** — overview, features, hotkeys and install steps on one page.
 
 </div>
 

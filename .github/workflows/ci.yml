@@ -30,7 +30,7 @@ jobs:
           npm run build
           npm run build:demo
 
-      - name: landing page copy (same as pages.yml)
+      - name: assemble pages site (same as pages.yml)
         run: scripts/pages-home.sh
 
       - name: test

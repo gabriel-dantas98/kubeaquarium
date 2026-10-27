@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
 
-const target = new URL(process.env.DEMO_URL ?? 'http://127.0.0.1:7782/kubeaquarium/');
+const target = new URL(process.env.DEMO_URL ?? 'http://127.0.0.1:7782/kubeaquarium/demo/');
 assert.ok(['localhost', '127.0.0.1', '[::1]'].includes(target.hostname), 'Static demo checks must run on localhost');
 assert.ok(['http:', 'https:'].includes(target.protocol), 'Use an HTTP preview URL');
 assert.equal(target.search, '', 'Use the built demo URL without query parameters');
