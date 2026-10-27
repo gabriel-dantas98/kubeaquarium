@@ -38,18 +38,7 @@ jobs:
           npm run build:demo
 
       - name: add landing page under site/home
-        run: |
-          set -euo pipefail
-          home=site/home
-          mkdir -p "$home"
-          cp docs/index.html docs/.nojekyll "$home"/
-          cp -R docs/assets "$home"/assets
-          # copy only the screenshots referenced by the landing page, keeping relative paths
-          grep -oE 'screenshots/[^"]+' docs/index.html | sort -u | while read -r img; do
-            mkdir -p "$home/$(dirname "$img")"
-            cp "docs/$img" "$home/$img"
-          done
-          find "$home" -type f | sort
+        run: scripts/pages-home.sh
 
       - uses: actions/upload-pages-artifact@v5
         with:

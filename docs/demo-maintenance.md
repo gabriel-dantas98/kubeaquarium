@@ -30,6 +30,10 @@ and also supports manual dispatch. After the demo build it copies the landing pa
 (`docs/index.html`, `docs/assets/`, and the `docs/screenshots/` images it references)
 into `site/home/`, so the demo stays at `/kubeaquarium/` and the landing page is at
 `/kubeaquarium/home/`. Landing page links are relative; its demo links point to `../`.
+The copy lives in `scripts/pages-home.sh` and also runs in `ci.yml`, so a missing card
+image fails the PR instead of the `main` deploy. In the hosted build only
+(`VITE_KUBEAQUARIUM_DEMO=1`), the top-bar brand links to `<base>/home/`; the embedded
+binary build drops that code.
 Opening a PR does not publish its demo or landing page. After
 an authorized merge, check the Pages workflow and the hosted demo.
 
