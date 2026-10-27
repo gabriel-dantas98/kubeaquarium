@@ -21,6 +21,8 @@ And when you really need to delete one — there's a submarine.
 
 **[▶ Try the live demo](https://gabriel-dantas98.github.io/kubeaquarium/)** — runs entirely in your browser with synthetic cluster data, no Kubernetes required.
 
+**[Project home](https://gabriel-dantas98.github.io/kubeaquarium/home/)** — overview, features, hotkeys and install steps on one page.
+
 </div>
 
 ---
