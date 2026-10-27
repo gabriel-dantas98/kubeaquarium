@@ -41,6 +41,8 @@ body.dive #scene { cursor: none; }
   background: linear-gradient(180deg, rgba(4,16,30,0.85), rgba(4,16,30,0));
 }
 .brand { font-weight: 600; letter-spacing: 0.3px; }
+.brand a { color: inherit; text-decoration: none; }
+.brand a:hover, .brand a:focus-visible { text-decoration: underline; }
 .meta { display: flex; gap: 14px; align-items: center; color: var(--text-dim); font-variant-numeric: tabular-nums; }
 .attack-toggle {
   pointer-events: auto;

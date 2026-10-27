@@ -14,6 +14,17 @@ import { DemoMission } from './demo-mission';
 import type { CameraPreferences } from './camera';
 import { mountVehicleSelector } from './hud/vehicle';
 
+// The hosted demo build (GitHub Pages) also publishes the landing page under <base>/home/.
+if (import.meta.env.VITE_KUBEAQUARIUM_DEMO === '1') {
+  const brand = document.querySelector<HTMLElement>('.brand');
+  if (brand) {
+    const link = document.createElement('a');
+    link.href = `${import.meta.env.BASE_URL}home/`;
+    link.textContent = brand.textContent;
+    link.title = 'About kubeaquarium';
+    brand.replaceChildren(link);
+  }
+}
 
 const audio = new AquariumAudio();
 const soundToggle = document.getElementById('sound-toggle') as HTMLButtonElement;

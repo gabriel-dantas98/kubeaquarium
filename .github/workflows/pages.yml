@@ -37,6 +37,9 @@ jobs:
           npm ci
           npm run build:demo
 
+      - name: add landing page under site/home
+        run: scripts/pages-home.sh
+
       - uses: actions/upload-pages-artifact@v5
         with:
           path: site
