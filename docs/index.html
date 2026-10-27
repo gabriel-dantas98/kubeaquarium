@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>kubeaquarium · a live 3D aquarium for your Kubernetes cluster</title>
+  <meta name="description" content="kubeaquarium turns your Kubernetes cluster into a live 3D aquarium: pods are Docker whales swimming in namespace bubbles. A single Go binary that uses your current kubectl context.">
+  <meta name="theme-color" content="#04101e">
+  <meta property="og:title" content="kubeaquarium">
+  <meta property="og:description" content="A live 3D aquarium for your Kubernetes cluster. Pods are Docker whales, namespaces are bubbles.">
+  <link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+  <a class="skip" href="#main">Skip to content</a>
+
+  <div class="ocean" aria-hidden="true">
+    <span class="bubble b1"></span><span class="bubble b2"></span><span class="bubble b3"></span>
+    <span class="bubble b4"></span><span class="bubble b5"></span><span class="bubble b6"></span>
+  </div>
+
+  <header class="top">
+    <nav class="nav wrap" aria-label="Page sections">
+      <a class="brand" href="#main"><span aria-hidden="true">🐳</span> kubeaquarium</a>
+      <ul>
+        <li><a href="#demo">Demo</a></li>
+        <li><a href="#features">Features</a></li>
+        <li><a href="#hotkeys">Hotkeys</a></li>
+        <li><a href="#how">How it works</a></li>
+        <li><a href="#usage">Usage</a></li>
+        <li><a href="https://github.com/gabriel-dantas98/kubeaquarium">GitHub</a></li>
+      </ul>
+    </nav>
+  </header>
+
+  <main id="main">
+    <section class="hero wrap">
+      <p class="eyebrow">Kubernetes · Go · Three.js</p>
+      <h1>A live 3D aquarium for your Kubernetes cluster.</h1>
+      <p class="lede">Every pod is a Docker whale. Namespaces are floating bubbles. Broken pods turn red and jitter.
+        And when you really need to delete one, there's a submarine.</p>
+      <div class="cta">
+        <a class="btn primary" href="https://gabriel-dantas98.github.io/kubeaquarium/">Try the live demo</a>
+        <a class="btn" href="#usage">Install</a>
+        <a class="btn ghost" href="https://github.com/gabriel-dantas98/kubeaquarium">View on GitHub</a>
+      </div>
+      <p class="small">The live demo runs entirely in your browser with synthetic cluster data. No Kubernetes required.</p>
+    </section>
+
+    <section id="demo" class="wrap section" aria-labelledby="demo-title">
+      <h2 id="demo-title">Watch the demo</h2>
+      <figure class="video">
+        <video controls playsinline preload="metadata" poster="assets/kubeaquarium-poster.jpg" width="1280" height="720">
+          <source src="assets/kubeaquarium-demo.mp4" type="video/mp4">
+          Your browser cannot play this video. <a href="assets/kubeaquarium-demo.mp4">Download the MP4</a>.
+        </video>
+        <figcaption>Explore the cluster, find a failing pod, dive in and fire. Recorded in the simulated demo.
+          <span class="credit">Soundtrack: “Hawaiian Hotel”, Ferera &amp; Paaluhi (public domain).</span></figcaption>
+      </figure>
+    </section>
+
+    <aside class="wrap warning" role="note" aria-labelledby="warn-title">
+      <h2 id="warn-title"><span aria-hidden="true">⚠️</span> Not recommended for production</h2>
+      <p>kubeaquarium is a great show piece for tech talks and demos on a test cluster. It is not meant for production clusters.
+        It never writes to the cluster unless you arm the submarine, but in live mode <strong>a missile hit sends a real pod
+        deletion request</strong> to the Kubernetes API (guarded by the pod's exact UID). Use the demo mode or a local
+        <code>kind</code> cluster on stage.</p>
+    </aside>
+
+    <section id="features" class="wrap section" aria-labelledby="features-title">
+      <h2 id="features-title">Features</h2>
+      <div class="grid">
+        <article class="card">
+          <img src="screenshots/visual-feedback/1600x900-overview.png" alt="Overview of the aquarium: namespace bubbles full of blue and red whales" loading="lazy" width="1600" height="900">
+          <h3>Namespaces as bubbles, pods as whales</h3>
+          <p>Each namespace is a rim-lit bubble sized by pod count and whale volume. Each pod is a Docker whale; its size maps
+            requested CPU and memory (or limits), not live usage. Color is status: blue running, red and jittering on
+            CrashLoopBackOff / ImagePullBackOff / Error, green for Succeeded.</p>
+        </article>
+        <article class="card">
+          <img src="screenshots/visual-feedback/1600x900-filter.png" alt="Filter bar with non-matching whales dimmed" loading="lazy" width="1600" height="900">
+          <h3>k9s-style filtering</h3>
+          <p>Press <kbd>/</kbd> and type. Non-matching whales dim instantly; <kbd>Enter</kbd> flies to the closest match.
+            Terms AND together: <code>nginx</code>, <code>/^worker-/</code>, <code>ns:web,payments</code>,
+            <code>phase:!Running</code>, <code>node:…</code>, <code>reason:CrashLoopBackOff</code>.</p>
+        </article>
+        <article class="card">
+          <img src="screenshots/visual-feedback/1600x900-radar.png" alt="Sonar-styled resource radar with pod markers" loading="lazy" width="1600" height="900">
+          <h3>Resource radar</h3>
+          <p><kbd>Ctrl</kbd>/<kbd>⌘</kbd> + <kbd>K</kbd> opens a sonar-styled command palette with fuzzy-ranked pods by name,
+            namespace, phase, node or reason. Markers use real scene positions around your heading, with a range of 50, 100,
+            250 or 500 units.</p>
+        </article>
+        <article class="card">
+          <img src="screenshots/visual-feedback/1600x900-focus.png" alt="Detail panel open for a selected pod" loading="lazy" width="1600" height="900">
+          <h3>Pod detail panel</h3>
+          <p>Click a whale and it freezes and opens its dossier: <strong>Overview</strong> (node, ready, restarts, requests, age),
+            <strong>Events</strong>, <strong>YAML</strong> (without <code>managedFields</code>) and live-streaming
+            <strong>Logs</strong> with a container picker.</p>
+        </article>
+        <article class="card">
+          <img src="screenshots/visual-feedback/1600x900-dive.png" alt="First-person dive view from the submarine" loading="lazy" width="1600" height="900">
+          <h3>Dive mode &amp; three submarines</h3>
+          <p>Press <kbd>F</kbd> to pilot the submarine through the cluster. In <em>Vessel &amp; camera</em> choose
+            <strong>Nautilus</strong> (classic hull), <strong>Manta</strong> (swept wings) or <strong>Atlas</strong> (twin pods);
+            the choice persists locally. Look sensitivity, invert Y, reduced motion and optional sound are there too.</p>
+        </article>
+        <article class="card danger">
+          <img src="screenshots/visual-feedback/1600x900-impact.png" alt="Missile impact on a whale with explosion fragments" loading="lazy" width="1600" height="900">
+          <h3>Gamified chaos: attack mode</h3>
+          <p><kbd>Ctrl</kbd>/<kbd>⌘</kbd> + <kbd>L</kbd> arms the missiles; click while diving to fire. In live mode a hit
+            <strong>deletes the real pod</strong> (UID precondition), then the recovery panel follows what the cluster
+            actually does: original pod gone, replacement from the same controller, replacement Ready.</p>
+        </article>
+      </div>
+      <ul class="extras">
+        <li><strong>Demo mode</strong> — <code>?demo</code> swaps the cluster for synthetic in-browser data with a guided, skippable “SIMULATED” mission.</li>
+        <li><strong>Server-side narrowing</strong> — <code>--namespace</code> and <code>--label-selector</code> filter at the informer, so big clusters only send what you asked for.</li>
+        <li><strong>One draw call</strong> — all whales live in one <code>InstancedMesh</code>, with boids, adaptive resolution and pooled effects.</li>
+      </ul>
+    </section>
+
+    <section id="hotkeys" class="wrap section" aria-labelledby="hotkeys-title">
+      <h2 id="hotkeys-title">Hotkeys &amp; controls</h2>
+      <div class="table-wrap">
+        <table>
+          <caption>Keyboard and mouse controls, as implemented in <code>web/src</code></caption>
+          <thead><tr><th scope="col">Input</th><th scope="col">Action</th><th scope="col">Where</th></tr></thead>
+          <tbody>
+            <tr><td><kbd>/</kbd></td><td>Open the filter bar</td><td>Anywhere</td></tr>
+            <tr><td><kbd>Enter</kbd></td><td>Fly to the closest match and open its detail</td><td>Filter bar</td></tr>
+            <tr><td><kbd>Ctrl</kbd>/<kbd>⌘</kbd> + <kbd>K</kbd></td><td>Open / close the resource radar</td><td>Anywhere</td></tr>
+            <tr><td><kbd>↑</kbd> <kbd>↓</kbd> · <kbd>Enter</kbd></td><td>Move through results · inspect the selected pod</td><td>Radar</td></tr>
+            <tr><td><kbd>F</kbd></td><td>Enter / leave dive mode</td><td>Aquarium</td></tr>
+            <tr><td><kbd>W</kbd> <kbd>A</kbd> <kbd>S</kbd> <kbd>D</kbd> or arrow keys</td><td>Move the submarine</td><td>Dive</td></tr>
+            <tr><td><kbd>Space</kbd> · <kbd>Shift</kbd></td><td>Rise · descend</td><td>Dive</td></tr>
+            <tr><td>Right mouse button + drag</td><td>Look around</td><td>Dive</td></tr>
+            <tr><td>Left drag · mouse wheel</td><td>Orbit · zoom</td><td>Overview</td></tr>
+            <tr><td>Click a whale</td><td>Select it and open the detail panel</td><td>Aquarium</td></tr>
+            <tr><td><kbd>O</kbd></td><td>Frame the whole cluster (overview)</td><td>Anywhere</td></tr>
+            <tr><td><kbd>Ctrl</kbd>/<kbd>⌘</kbd> + <kbd>L</kbd></td><td>Arm / disarm attack mode</td><td>Anywhere</td></tr>
+            <tr><td>Left click</td><td>Fire a missile at the reticle</td><td>Dive + attack armed</td></tr>
+            <tr><td><kbd>Esc</kbd></td><td>Close the frontmost panel (radar, filter, settings, detail), then leave dive</td><td>Anywhere</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="how" class="wrap section" aria-labelledby="how-title">
+      <h2 id="how-title">How it works</h2>
+      <p>One Go binary on your machine. It talks to whatever cluster your <code>kubectl</code> context points at, and serves an
+        embedded Three.js frontend to your browser.</p>
+      <figure class="diagram">
+        <svg viewBox="0 0 960 420" role="img" aria-labelledby="dg-title dg-desc">
+          <title id="dg-title">kubeaquarium architecture</title>
+          <desc id="dg-desc">The kubeconfig context selects a Kubernetes API server. The kubeaquarium Go binary watches pods with client-go informers and exposes a WebSocket hub that sends a snapshot plus delta events, and a pod operations HTTP API for YAML, events, logs and delete. The browser renders the embedded frontend with Three.js.</desc>
+          <defs>
+            <linearGradient id="g-box" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stop-color="#0f3358"/><stop offset="1" stop-color="#0a2440"/>
+            </linearGradient>
+            <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M0 0 L10 5 L0 10 z" fill="#6ec3f4"/>
+            </marker>
+            <marker id="arr-r" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M0 0 L10 5 L0 10 z" fill="#f87171"/>
+            </marker>
+          </defs>
+
+          <!-- cluster -->
+          <g>
+            <rect x="20" y="60" width="200" height="300" rx="18" fill="url(#g-box)" stroke="#2496ed" stroke-width="2"/>
+            <text x="120" y="96" class="t-h">Your cluster</text>
+            <rect x="44" y="120" width="152" height="56" rx="10" class="pill"/>
+            <text x="120" y="144" class="t-b">kubeconfig</text>
+            <text x="120" y="163" class="t-s">current context</text>
+            <rect x="44" y="200" width="152" height="56" rx="10" class="pill"/>
+            <text x="120" y="224" class="t-b">Kubernetes API</text>
+            <text x="120" y="243" class="t-s">pods · events · logs</text>
+            <text x="120" y="300" class="t-s">kind, EKS, GKE…</text>
+            <text x="120" y="320" class="t-s">anything kubectl reaches</text>
+            <line x1="120" y1="176" x2="120" y2="198" stroke="#6ec3f4" stroke-width="2" marker-end="url(#arr)"/>
+          </g>
+
+          <!-- go binary -->
+          <g>
+            <rect x="300" y="40" width="340" height="340" rx="18" fill="url(#g-box)" stroke="#2496ed" stroke-width="2"/>
+            <text x="470" y="76" class="t-h">kubeaquarium (Go binary)</text>
+            <rect x="324" y="100" width="292" height="64" rx="10" class="pill"/>
+            <text x="470" y="126" class="t-b">client-go informers</text>
+            <text x="470" y="146" class="t-s">watch pods · --namespace · --label-selector</text>
+            <rect x="324" y="188" width="292" height="64" rx="10" class="pill"/>
+            <text x="470" y="214" class="t-b">WebSocket hub  /api/stream</text>
+            <text x="470" y="234" class="t-s">snapshot + add / update / delete deltas</text>
+            <rect x="324" y="276" width="292" height="80" rx="10" class="pill"/>
+            <text x="470" y="302" class="t-b">pod ops HTTP API  /api/pod/…</text>
+            <text x="470" y="322" class="t-s">yaml · events · containers · logs (chunked)</text>
+            <text x="470" y="342" class="t-s t-red">DELETE with UID precondition (missile)</text>
+            <line x1="470" y1="164" x2="470" y2="186" stroke="#6ec3f4" stroke-width="2" marker-end="url(#arr)"/>
+          </g>
+
+          <!-- browser -->
+          <g>
+            <rect x="720" y="60" width="220" height="300" rx="18" fill="url(#g-box)" stroke="#2496ed" stroke-width="2"/>
+            <text x="830" y="96" class="t-h">Your browser</text>
+            <text x="830" y="118" class="t-s">127.0.0.1:7777</text>
+            <rect x="742" y="140" width="176" height="64" rx="10" class="pill"/>
+            <text x="830" y="166" class="t-b">Three.js scene</text>
+            <text x="830" y="186" class="t-s">InstancedMesh whales</text>
+            <rect x="742" y="224" width="176" height="64" rx="10" class="pill"/>
+            <text x="830" y="250" class="t-b">HUD (plain DOM)</text>
+            <text x="830" y="270" class="t-s">filter · radar · detail</text>
+            <text x="830" y="320" class="t-s">embedded via go:embed</text>
+          </g>
+
+          <!-- arrows -->
+          <path d="M196 228 C 250 228, 260 132, 322 132" fill="none" stroke="#6ec3f4" stroke-width="2.5" marker-end="url(#arr)" class="flow"/>
+          <text x="258" y="166" class="t-s t-l">watch</text>
+          <path d="M616 220 C 670 220, 680 172, 740 172" fill="none" stroke="#6ec3f4" stroke-width="2.5" marker-end="url(#arr)" class="flow"/>
+          <text x="678" y="186" class="t-s">WS</text>
+          <path d="M740 256 C 690 256, 680 316, 618 316" fill="none" stroke="#6ec3f4" stroke-width="2" marker-end="url(#arr)"/>
+          <text x="684" y="300" class="t-s">HTTP</text>
+          <path d="M324 336 C 260 336, 250 240, 198 240" fill="none" stroke="#f87171" stroke-width="2" stroke-dasharray="6 6" marker-end="url(#arr-r)"/>
+          <text x="256" y="300" class="t-s t-red">get · logs</text>
+          <text x="256" y="316" class="t-s t-red">delete</text>
+          <text x="480" y="406" class="t-s">Demo mode (?demo) swaps the WebSocket for a synthetic in-browser stream — no backend, no cluster.</text>
+        </svg>
+      </figure>
+    </section>
+
+    <section id="usage" class="wrap section" aria-labelledby="usage-title">
+      <h2 id="usage-title">How to use</h2>
+      <ol class="steps">
+        <li>
+          <h3>Install</h3>
+          <pre><code>curl -sSfL https://raw.githubusercontent.com/gabriel-dantas98/kubeaquarium/main/scripts/install.sh | sh</code></pre>
+          <p>Or with Go:</p>
+          <pre><code>go install github.com/gabriel-dantas98/kubeaquarium/cmd/kubeaquarium@latest</code></pre>
+          <p>Or grab a binary from <a href="https://github.com/gabriel-dantas98/kubeaquarium/releases">Releases</a>.</p>
+        </li>
+        <li>
+          <h3>Run</h3>
+<pre><code>kubeaquarium                    # uses your current kubectl context
+kubeaquarium --context my-eks   # pick a context
+kubeaquarium --namespace payments --label-selector app=api
+kubeaquarium contexts           # list available contexts</code></pre>
+          <p>The browser opens at <code>http://127.0.0.1:7777</code>. Whatever cluster your <code>kubectl</code> can reach,
+            kubeaquarium can reach.</p>
+        </li>
+        <li>
+          <h3>Rehearsing a talk? Use a throwaway cluster</h3>
+<pre><code>make cluster        # spin up a local kind cluster
+make samples        # deploy sample workloads across namespaces
+make web-deps       # install frontend deps (one-time)
+make run            # build + start http://127.0.0.1:7777
+make scale N=500    # stress test</code></pre>
+          <p>Or skip Kubernetes entirely with the <a href="https://gabriel-dantas98.github.io/kubeaquarium/">live demo</a>.</p>
+        </li>
+      </ol>
+      <div class="issues">
+        <p>Found a bug or have an idea for the aquarium?</p>
+        <a class="btn primary" href="https://github.com/gabriel-dantas98/kubeaquarium/issues">Open an issue</a>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div class="wrap">
+      <p>Built by <a href="https://github.com/gabriel-dantas98">Gabriel Dantas</a> · MIT licensed ·
+        <a href="https://github.com/gabriel-dantas98/kubeaquarium">source</a> ·
+        <a href="https://github.com/gabriel-dantas98/kubeaquarium/issues">issues</a></p>
+      <p class="small">Demo soundtrack: “Hawaiian Hotel”, Ferera &amp; Paaluhi (public domain).</p>
+      <p class="small"><em>If a missile takes out the wrong pod in production, the submarine did it.</em> 🫡</p>
+    </div>
+  </footer>
+</body>
+</html>
