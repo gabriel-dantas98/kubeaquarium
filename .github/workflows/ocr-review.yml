@@ -1,0 +1,116 @@
+# OpenCodeReview — review automático de PR com comentários inline e resumo sticky.
+#
+# O endpoint/modelo padrão é o Gemini (Google AI Studio, faixa gratuita),
+# via API compatível com OpenAI. Para trocar de provedor (OpenRouter, OpenAI, etc.):
+#   variable  OCR_LLM_URL
+#   variable  OCR_LLM_MODEL
+#   variable  OCR_LLM_USE_ANTHROPIC  ('true' para Anthropic, 'false' para OpenAI-compat)
+#   secret    OCR_LLM_AUTH_TOKEN
+#
+# pull_request_target é usado para o token poder comentar até em PRs de fork.
+# Isso é seguro aqui porque a action só lê o diff e não executa código do PR.
+#
+# Concurrency: o GitHub avalia o grupo ANTES do if do job. Um group plano
+# (ocr-<pr>) faria qualquer comentário no PR cancelar um review em andamento.
+# Eventos que disparam review compartilham o grupo por PR; os demais caem
+# em noop-<run_id> e não se chocam.
+
+name: OpenCodeReview PR Review
+
+concurrency:
+  group: >-
+    ${{
+      (
+        github.event_name == 'pull_request_target'
+        || (
+          github.event_name == 'issue_comment'
+          && github.event.issue.pull_request
+          && github.event.comment.user.type != 'Bot'
+          && (
+            github.event.comment.author_association == 'MEMBER'
+            || github.event.comment.author_association == 'OWNER'
+            || github.event.comment.author_association == 'COLLABORATOR'
+          )
+          && (
+            startsWith(github.event.comment.body, '/open-code-review')
+            || startsWith(github.event.comment.body, '@open-code-review')
+          )
+        )
+      )
+      && format('ocr-{0}', github.event.pull_request.number || github.event.issue.number)
+      || format('noop-{0}', github.run_id)
+    }}
+  cancel-in-progress: true
+
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened, ready_for_review]
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  code-review:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    # PRs: ignora rascunhos e PRs de bot. Comentários: só humanos
+    # MEMBER/OWNER/COLLABORATOR com /open-code-review ou @open-code-review.
+    if: |
+      (
+        github.event_name == 'pull_request_target'
+        && github.event.pull_request.draft == false
+        && github.event.pull_request.user.type != 'Bot'
+      )
+      || (
+        github.event_name == 'issue_comment'
+        && github.event.issue.pull_request
+        && github.event.comment.user.type != 'Bot'
+        && (
+          github.event.comment.author_association == 'MEMBER'
+          || github.event.comment.author_association == 'OWNER'
+          || github.event.comment.author_association == 'COLLABORATOR'
+        )
+        && (
+          startsWith(github.event.comment.body, '/open-code-review')
+          || startsWith(github.event.comment.body, '@open-code-review')
+        )
+      )
+    steps:
+      - name: Get PR context
+        id: pr-context
+        if: github.event_name == 'issue_comment'
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.1.0
+        with:
+          script: |
+            const prNumber = context.issue.number;
+            const { data: pullRequest } = await github.rest.pulls.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: prNumber
+            });
+            core.setOutput('base_ref', pullRequest.base.ref);
+            core.setOutput('head_sha', pullRequest.head.sha);
+
+      - name: Run OpenCodeReview
+        uses: alibaba/open-code-review@b1dcffb0729f3f2e3e47170968a5014a2e035580 # v1.13.7
+        with:
+          llm_url: ${{ vars.OCR_LLM_URL || 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions' }}
+          llm_auth_token: ${{ secrets.OCR_LLM_AUTH_TOKEN }}
+          llm_model: ${{ vars.OCR_LLM_MODEL || 'gemini-3.5-flash-lite' }}
+          llm_use_anthropic: ${{ vars.OCR_LLM_USE_ANTHROPIC || 'false' }}
+          # Sobrescreva com vars.OCR_LLM_EXTRA_BODY se trocar de provedor
+          # (ex.: Anthropic rejeita reasoning_effort neste campo).
+          llm_extra_body: ${{ vars.OCR_LLM_EXTRA_BODY || '{"reasoning_effort":"low"}' }}
+          language: Portuguese
+          sticky_summary: 'true'
+          incremental: 'true'
+          effort: low
+          max_tokens_budget: '50000'
+          review_concurrency: '1'
+          upload_artifacts: 'false'
+          ocr_version: '1.13.7'
+          base_ref: ${{ steps.pr-context.outputs.base_ref }}
+          head_sha: ${{ steps.pr-context.outputs.head_sha }}
