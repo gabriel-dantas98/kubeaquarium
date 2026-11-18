@@ -13,12 +13,16 @@ type ContextInfo struct {
 	Current   bool   `json:"current"`
 }
 
-func ListContexts(kubeconfigPath string) ([]ContextInfo, error) {
+func kubeconfigLoader(kubeconfigPath string) *clientcmd.ClientConfigLoadingRules {
 	loader := clientcmd.NewDefaultClientConfigLoadingRules()
 	if kubeconfigPath != "" {
 		loader.ExplicitPath = kubeconfigPath
 	}
-	cfg, err := loader.Load()
+	return loader
+}
+
+func ListContexts(kubeconfigPath string) ([]ContextInfo, error) {
+	cfg, err := kubeconfigLoader(kubeconfigPath).Load()
 	if err != nil {
 		return nil, err
 	}
@@ -45,10 +49,7 @@ func WithCurrentContext(contexts []ContextInfo, contextName string) []ContextInf
 }
 
 func ClientForContext(kubeconfigPath, contextName string) (clientcmd.ClientConfig, error) {
-	loader := clientcmd.NewDefaultClientConfigLoadingRules()
-	if kubeconfigPath != "" {
-		loader.ExplicitPath = kubeconfigPath
-	}
+	loader := kubeconfigLoader(kubeconfigPath)
 	overrides := &clientcmd.ConfigOverrides{}
 	if contextName != "" {
 		overrides.CurrentContext = contextName

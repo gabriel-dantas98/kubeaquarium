@@ -8,8 +8,61 @@ import (
 	"k8s.io/client-go/kubernetes"
 )
 
+func writeTestKubeconfig(t *testing.T, body string) string {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "config")
+	if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
+		t.Fatalf("write kubeconfig: %v", err)
+	}
+	return path
+}
+
+func TestListContextsSortsAndMarksCurrent(t *testing.T) {
+	kubeconfigPath := writeTestKubeconfig(t, `apiVersion: v1
+kind: Config
+clusters:
+- name: alpha
+  cluster:
+    server: https://127.0.0.1:6443
+    insecure-skip-tls-verify: true
+- name: beta
+  cluster:
+    server: https://127.0.0.2:6443
+    insecure-skip-tls-verify: true
+contexts:
+- name: zulu
+  context:
+    cluster: beta
+    namespace: z-ns
+- name: alpha
+  context:
+    cluster: alpha
+    namespace: a-ns
+current-context: zulu
+`)
+
+	got, err := ListContexts(kubeconfigPath)
+	if err != nil {
+		t.Fatalf("list contexts: %v", err)
+	}
+	if len(got) != 2 {
+		t.Fatalf("got %d contexts, want 2", len(got))
+	}
+	if got[0].Name != "alpha" || got[1].Name != "zulu" {
+		t.Fatalf("sort order: %#v", got)
+	}
+	if !got[1].Current || got[0].Current {
+		t.Fatalf("current flag: %#v", got)
+	}
+	if got[0].Cluster != "alpha" || got[0].Namespace != "a-ns" {
+		t.Fatalf("alpha fields: %#v", got[0])
+	}
+	if got[1].Cluster != "beta" || got[1].Namespace != "z-ns" {
+		t.Fatalf("zulu fields: %#v", got[1])
+	}
+}
+
 func TestClientForContextSupportsOIDCAuthProvider(t *testing.T) {
-	kubeconfigPath := filepath.Join(t.TempDir(), "config")
 	kubeconfig := `apiVersion: v1
 kind: Config
 clusters:
@@ -36,9 +89,7 @@ users:
         refresh-token: test-refresh
 `
 
-	if err := os.WriteFile(kubeconfigPath, []byte(kubeconfig), 0o600); err != nil {
-		t.Fatalf("write kubeconfig: %v", err)
-	}
+	kubeconfigPath := writeTestKubeconfig(t, kubeconfig)
 
 	clientConfig, err := ClientForContext(kubeconfigPath, "")
 	if err != nil {

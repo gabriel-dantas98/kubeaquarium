@@ -29,7 +29,6 @@ func (s style) wrap(code, text string) string {
 func (s style) Bold(t string) string  { return s.wrap("1", t) }
 func (s style) Dim(t string) string   { return s.wrap("2", t) }
 func (s style) Cyan(t string) string  { return s.wrap("36", t) }
-func (s style) Blue(t string) string  { return s.wrap("34", t) }
 func (s style) Green(t string) string { return s.wrap("32", t) }
 func (s style) Red(t string) string   { return s.wrap("31", t) }
 func (s style) Yel(t string) string   { return s.wrap("33", t) }
